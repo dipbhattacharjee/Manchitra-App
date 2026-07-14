@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/theme.dart';
+import '../../core/models/models.dart';
+import '../../core/services/route_service.dart';
+import '../pandals/pandal_detail_screen.dart';
 
 /// ============================================================
-/// MANCHITRA — Hop Route Planner Screen (Image 3 Redesign)
+/// MANCHITRA — Hop Route Planner Screen (Phase 3 Integration)
 /// ============================================================
 
 class HopRouteScreen extends StatefulWidget {
@@ -13,125 +16,200 @@ class HopRouteScreen extends StatefulWidget {
 }
 
 class _HopRouteScreenState extends State<HopRouteScreen> {
-  int _selectedTransportIndex = 0; // 0: walk, 1: train, 2: car, 3: cab
-  int _selectedDurationIndex = 0; // 0: 1-Day, 1: 3-Day, 2: 5-Day
+  final RouteService _routeService = RouteService.instance;
+  
+  int _activeVariantIndex = 0; // 0: Fastest, 1: Shortest, 2: Walking
+  List<HopRoute> _routeVariants = [];
+  bool _isSaving = false;
+
+  // Mock User Location (College Square, Kolkata)
+  final double _startLat = 22.574697;
+  final double _startLng = 88.363989;
+
+  // Local tracking of visited stops by pandal ID
+  final Set<String> _visitedPandalIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _recalculateRoutes();
+  }
+
+  void _recalculateRoutes() {
+    if (HopListManager.selectedPandals.isNotEmpty) {
+      setState(() {
+        _routeVariants = _routeService.generateRouteVariants(
+          HopListManager.selectedPandals,
+          _startLat,
+          _startLng,
+        );
+      });
+    } else {
+      setState(() {
+        _routeVariants = [];
+      });
+    }
+  }
+
+  void _swapStops(int index1, int index2) {
+    if (index1 < 0 || index1 >= HopListManager.selectedPandals.length) return;
+    if (index2 < 0 || index2 >= HopListManager.selectedPandals.length) return;
+
+    setState(() {
+      final temp = HopListManager.selectedPandals[index1];
+      HopListManager.selectedPandals[index1] = HopListManager.selectedPandals[index2];
+      HopListManager.selectedPandals[index2] = temp;
+    });
+    _recalculateRoutes();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Route recalculated instantly!'),
+        duration: Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _saveActiveRoute() async {
+    if (_routeVariants.isEmpty) return;
+    final activeRoute = _routeVariants[_activeVariantIndex];
+
+    setState(() => _isSaving = true);
+    await _routeService.saveRoute(activeRoute);
+    setState(() => _isSaving = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Route saved successfully to Supabase!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bool isEmpty = HopListManager.selectedPandals.isEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 120),
+      body: isEmpty ? _buildEmptyPlaceholder() : _buildRoutePlanner(),
+    );
+  }
+
+  Widget _buildEmptyPlaceholder() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 1. Header (Title + Tagline)
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Plan Your Pandal Hop',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                        letterSpacing: -0.5,
-                      ),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF2F0),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary.withOpacity(0.1), width: 4),
+              ),
+              child: const Icon(Icons.alt_route_rounded, size: 64, color: AppColors.primary),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Your Hop List is Empty',
+              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Go to the Discover screen and tap "+ Add to Hop List" on pandals to construct your customized route.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: 'Manrope', fontSize: 14, color: Colors.grey[600], height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoutePlanner() {
+    final activeRoute = _routeVariants.isNotEmpty ? _routeVariants[_activeVariantIndex] : null;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Header (Title + Tagline)
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Plan Your Pandal Hop',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      letterSpacing: -0.5,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'AI optimized routes to experience the best of the festival with minimal crowds.',
-                      style: TextStyle(
-                        fontFamily: 'Manrope',
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        height: 1.4,
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'AI optimized routes to experience the best of the festival with minimal crowds.',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                      height: 1.4,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 2. Route Variant Selector
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ROUTE PREFERENCE',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.grey[500],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F2EA),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    children: [
+                      _buildVariantTab(0, 'Fastest', Icons.bolt),
+                      _buildVariantTab(1, 'Shortest', Icons.straighten),
+                      _buildVariantTab(2, 'Walking', Icons.directions_walk),
+                    ],
+                  ),
+                ),
+              ],
             ),
+          ),
 
-            // 2. Transport Mode Selector
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'TRANSPORT MODE',
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F2EA),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      children: [
-                        _buildTransportTab(0, Icons.directions_walk_rounded),
-                        _buildTransportTab(1, Icons.train_rounded),
-                        _buildTransportTab(2, Icons.directions_car_rounded),
-                        _buildTransportTab(3, Icons.local_taxi_rounded),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 3. Plan Duration Selector
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PLAN DURATION',
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F2EA),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      children: [
-                        _buildDurationTab(0, '1-Day'),
-                        _buildDurationTab(1, '3-Day'),
-                        _buildDurationTab(2, '5-Day'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 4. Statistics Indicators Row
+          // 3. Statistics Indicators Row
+          if (activeRoute != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Row(
@@ -139,21 +217,21 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                 children: [
                   _buildStatIndicator(
                     icon: Icons.alt_route,
-                    value: '4.2',
+                    value: activeRoute.totalDistanceKm.toStringAsFixed(1),
                     unit: 'km',
                     label: 'Total Dist.',
                     circleColor: Colors.white,
                   ),
                   _buildStatIndicator(
                     icon: Icons.access_time_rounded,
-                    value: '3',
-                    unit: 'hrs',
+                    value: activeRoute.totalTimeText,
+                    unit: '',
                     label: 'Est. Time',
                     circleColor: Colors.white,
                   ),
                   _buildStatIndicator(
                     icon: Icons.people_outline,
-                    value: 'Low',
+                    value: 'Medium',
                     unit: '',
                     label: 'Crowd Factor',
                     circleColor: Colors.white,
@@ -163,38 +241,47 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
               ),
             ),
 
-            // 5. Named Route Headline
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Row(
-                children: [
-                  const Text(
-                    'North Kolkata Classic',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                      letterSpacing: -0.5,
-                    ),
+          // 4. Named Route Headline
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            child: Row(
+              children: [
+                const Text(
+                  'Optimized Sequence',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                    letterSpacing: -0.5,
                   ),
-                  const SizedBox(width: 8),
-                  Icon(Icons.edit_outlined, size: 18, color: Colors.grey[600]),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      HopListManager.clear();
+                      _recalculateRoutes();
+                    });
+                  },
+                  child: const Text('(Clear)', style: TextStyle(color: Colors.grey, fontSize: 13, decoration: TextDecoration.underline)),
+                ),
+              ],
             ),
+          ),
 
-            // 6. Timeline List
+          // 5. Dynamic Timeline List
+          if (activeRoute != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
-                  // Stop 1
+                  // Start Location indicator
                   _buildTimelineStop(
-                    title: 'Ahiritola Sarbojanin',
-                    sub: 'Heritage theme, traditional idol.',
-                    crowd: 'Moderate',
-                    duration: '30 min view',
+                    title: 'Your Starting Point',
+                    sub: 'College Square area, Kolkata',
+                    crowd: null,
+                    duration: null,
                     badgeText: 'Start',
                     badgeBg: const Color(0xFFFEF0D4),
                     badgeTextColor: const Color(0xFFB37400),
@@ -202,180 +289,156 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                       width: 28,
                       height: 28,
                       decoration: const BoxDecoration(
-                        color: AppColors.primary,
+                        color: Colors.blueGrey,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.location_on, color: Colors.white, size: 14),
+                      child: const Icon(Icons.my_location, color: Colors.white, size: 14),
                     ),
-                  ),
-                  _buildTimelineConnector(
-                    text: '15 min walk via Sovabazar St.',
-                    icon: Icons.directions_walk,
+                    isStart: true,
                   ),
 
-                  // Stop 2
-                  _buildTimelineStop(
-                    title: 'Kumartuli Park',
-                    sub: 'Artisans\' district, intricate craftsmanship.',
-                    crowd: 'High',
-                    duration: '45 min view',
-                    markerWidget: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary, width: 4),
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                          ),
+                  // Legs and Stops
+                  ...List.generate(activeRoute.stops.length, (index) {
+                    final stop = activeRoute.stops[index];
+                    final leg = activeRoute.legs[index];
+                    final bool isVisited = _visitedPandalIds.contains(stop.id);
+
+                    return Column(
+                      children: [
+                        // Timeline connector representing transit leg
+                        _buildTimelineConnector(
+                          text: '${leg.durationMin} min via ${leg.suggestedMode.name.toUpperCase()} (${leg.distanceKm.toStringAsFixed(1)} km)',
+                          icon: leg.suggestedMode.icon,
                         ),
-                      ),
-                    ),
-                  ),
-                  _buildTimelineConnector(
-                    text: '20 min walk along Hooghly',
-                    icon: Icons.directions_walk,
-                  ),
 
-                  // Stop 3
-                  _buildTimelineStop(
-                    title: 'Bagbazar Sarbojanin',
-                    sub: 'Classic Ekchala idol, famous Sindoor Khela.',
-                    crowd: 'Very High',
-                    duration: '60 min view',
-                    badgeText: 'End',
-                    badgeBg: Colors.grey[200],
-                    badgeTextColor: Colors.black54,
-                    markerWidget: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFDC003),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.flag_rounded, color: Colors.white, size: 14),
-                    ),
-                  ),
+                        // Timeline Stop representing Pandal
+                        _buildTimelineStop(
+                          title: stop.name,
+                          sub: stop.theme ?? 'Traditional barowari design',
+                          crowd: stop.crowdLevel.label,
+                          duration: '30 min view time',
+                          badgeText: 'Stop ${index + 1}',
+                          badgeBg: isVisited ? const Color(0xFFE2F0D9) : const Color(0xFFFFF2F0),
+                          badgeTextColor: isVisited ? const Color(0xFF2A8A4A) : AppColors.primary,
+                          markerWidget: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (isVisited) {
+                                  _visitedPandalIds.remove(stop.id);
+                                } else {
+                                  _visitedPandalIds.add(stop.id);
+                                }
+                              });
+                            },
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: isVisited ? const Color(0xFF2A8A4A) : AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isVisited ? Icons.check : Icons.temple_hindu,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PandalDetailScreen(pandal: stop),
+                              ),
+                            );
+                          },
+                          // Reordering options
+                          showReorder: true,
+                          onMoveUp: index > 0 ? () => _swapStops(index, index - 1) : null,
+                          onMoveDown: index < activeRoute.stops.length - 1 ? () => _swapStops(index, index + 1) : null,
+                        ),
+                      ],
+                    );
+                  }),
                 ],
               ),
             ),
 
-            // 7. Navigation Action Button
+          // 6. Action Button (Save Route to Supabase)
+          if (activeRoute != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: GestureDetector(
-                onTap: () {},
-                child: Container(
-                  width: double.infinity,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFC8363C),
-                        Color(0xFFE8531A),
-                      ],
+              padding: const EdgeInsets.all(24),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveActiveRoute,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
                     ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+                    elevation: 4,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.explore_outlined, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Start Navigation',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                  child: _isSaving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.save_alt_rounded, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Save Route to Supabase',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildTransportTab(int index, IconData icon) {
-    final isSelected = _selectedTransportIndex == index;
+  Widget _buildVariantTab(int index, String label, IconData icon) {
+    final bool isSelected = _activeVariantIndex == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTransportIndex = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        onTap: () {
+          setState(() {
+            _activeVariantIndex = index;
+          });
+        },
+        child: Container(
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(26),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 6,
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
                   ]
-                : null,
+                : [],
           ),
-          child: Center(
-            child: Icon(
-              icon,
-              color: isSelected ? AppColors.primary : Colors.black54,
-              size: 20,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDurationTab(int index, String label) {
-    final isSelected = _selectedDurationIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedDurationIndex = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? AppColors.primary : Colors.black54,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: isSelected ? AppColors.primary : Colors.grey[600]),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? Colors.black : Colors.grey[600],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -390,68 +453,179 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
     required Color circleColor,
     bool hasCrowdRing = false,
   }) {
-    return Container(
-      width: 100,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: circleColor,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey[150] ?? Colors.grey[200]!),
-      ),
-      child: Column(
-        children: [
-          // Stat Ring/Icon
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              if (hasCrowdRing)
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: CircularProgressIndicator(
-                    value: 0.25,
-                    strokeWidth: 3,
-                    color: const Color(0xFFFDC003),
-                    backgroundColor: Colors.grey[100],
-                  ),
-                ),
-              Icon(icon, color: Colors.grey[700], size: 18),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Value
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+    return Column(
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: circleColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 1),
-                Text(
-                  unit,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
             ],
+            border: hasCrowdRing ? Border.all(color: Colors.green, width: 2) : null,
           ),
-          const SizedBox(height: 2),
-          // Label
+          child: Icon(icon, color: AppColors.primary, size: 20),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+            ),
+            if (unit.isNotEmpty) const SizedBox(width: 2),
+            if (unit.isNotEmpty)
+              Text(
+                unit,
+                style: const TextStyle(fontFamily: 'Manrope', fontSize: 12, color: Colors.grey),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontFamily: 'Manrope', fontSize: 11, color: Colors.grey[500]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineStop({
+    required String title,
+    required String sub,
+    required String? crowd,
+    required String? duration,
+    required String badgeText,
+    required Color badgeBg,
+    required Color badgeTextColor,
+    required Widget markerWidget,
+    bool isStart = false,
+    bool showReorder = false,
+    VoidCallback? onMoveUp,
+    VoidCallback? onMoveDown,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            markerWidget,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          badgeText,
+                          style: TextStyle(
+                            fontFamily: 'Manrope',
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: badgeTextColor,
+                          ),
+                        ),
+                      ),
+                      if (crowd != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          'Crowd: $crowd',
+                          style: const TextStyle(fontSize: 10, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    title,
+                    style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    sub,
+                    style: TextStyle(fontFamily: 'Manrope', fontSize: 12, color: Colors.grey[600]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (showReorder)
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_upward_rounded, size: 16),
+                    onPressed: onMoveUp,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(height: 8),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_downward_rounded, size: 16),
+                    onPressed: onMoveDown,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineConnector({
+    required String text,
+    required IconData icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const SizedBox(width: 14),
+          Container(
+            width: 2,
+            height: 40,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(width: 20),
+          Icon(icon, size: 16, color: Colors.grey[500]),
+          const SizedBox(width: 8),
           Text(
-            label,
+            text,
             style: TextStyle(
-              fontSize: 10,
+              fontFamily: 'Manrope',
+              fontSize: 12,
               color: Colors.grey[500],
               fontWeight: FontWeight.w500,
             ),
@@ -460,148 +634,4 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
       ),
     );
   }
-
-  Widget _buildTimelineStop({
-    required String title,
-    required String sub,
-    required String crowd,
-    required String duration,
-    String? badgeText,
-    Color? badgeBg,
-    Color? badgeTextColor,
-    required Widget markerWidget,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Timeline dot column
-        Column(
-          children: [
-            const SizedBox(height: 12),
-            markerWidget,
-          ],
-        ),
-        const SizedBox(width: 16),
-        // Stop Card details
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.grey[200]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                    if (badgeText != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: badgeBg,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          badgeText,
-                          style: TextStyle(
-                            color: badgeTextColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  sub,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    // Crowd badge
-                    Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      crowd,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    // Duration badge
-                    Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      duration,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimelineConnector({
-    required String text,
-    required IconData icon,
-  }) {
-    return Row(
-      children: [
-        // Marker connector line
-        const SizedBox(
-          width: 28,
-          child: Center(
-            child: SizedBox(
-              height: 44,
-              child: VerticalDivider(
-                color: Color(0xFFE4BEBA),
-                thickness: 1.5,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Helper transport text
-        Icon(icon, size: 16, color: Colors.grey[500]),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
 }
-

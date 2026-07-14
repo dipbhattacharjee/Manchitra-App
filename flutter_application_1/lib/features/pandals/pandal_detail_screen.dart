@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/theme.dart';
 import '../../core/models/models.dart';
 import '../../shared/widgets/common_widgets.dart';
+import '../../core/services/route_service.dart';
 
 /// ============================================================
 /// MANCHITRA — Pandal Detail Screen
@@ -18,6 +19,13 @@ class PandalDetailScreen extends StatefulWidget {
 class _PandalDetailScreenState extends State<PandalDetailScreen> {
   bool _isFavorited = false;
   bool _isInHop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isInHop = HopListManager.selectedPandals.any((p) => p.id == widget.pandal.id);
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +386,26 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
         children: [
           Expanded(
             child: GradientButton(
-              onPressed: () => setState(() => _isInHop = !_isInHop),
+              onPressed: () {
+                setState(() {
+                  _isInHop = !_isInHop;
+                  if (_isInHop) {
+                    HopListManager.add(widget.pandal);
+                  } else {
+                    HopListManager.remove(widget.pandal);
+                  }
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_isInHop
+                        ? 'Added ${widget.pandal.name} to your Hop List!'
+                        : 'Removed ${widget.pandal.name} from your Hop List!'),
+                    backgroundColor: AppColors.primary,
+                    duration: const Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
               text: _isInHop ? '✓ In Hop List' : '+ Add to Hop List',
               height: 52,
               hasGlow: true,
