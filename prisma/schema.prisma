@@ -48,7 +48,7 @@ model Pandal {
 
   latitude       Float
   longitude      Float
-  // geoLocation  Unsupported("geography(Point,4326)")  -- add via PostGIS raw SQL
+  geoLocation    Unsupported("geography(Point, 4326)")? @map("geo_location")
 
   visitStartTime String?       // e.g. "10:00"
   visitEndTime   String?       // e.g. "23:00"

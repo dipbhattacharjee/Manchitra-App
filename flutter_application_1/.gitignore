@@ -52,4 +52,9 @@ app.*.map.json
 .env.local
 .env.*.local
 
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+
+
 
