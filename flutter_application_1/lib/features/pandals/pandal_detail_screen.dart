@@ -392,7 +392,7 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
                   if (_isInHop) {
                     HopListManager.add(widget.pandal);
                   } else {
-                    HopListManager.remove(widget.pandal);
+                    HopListManager.remove(widget.pandal.id);
                   }
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
