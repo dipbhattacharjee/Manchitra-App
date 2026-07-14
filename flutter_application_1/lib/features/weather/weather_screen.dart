@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
+import '../../core/config/secrets.dart';
 
 /// ============================================================
 /// MANCHITRA — Festival Weather Planner Screen
@@ -122,7 +123,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
     try {
       // 2. Query OpenWeatherMap by coordinates
       final weatherUri = Uri.parse(
-        'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=f4520e211acc299fc4cc3f4fad4f99f6&units=metric',
+        'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=${AppSecrets.weatherApiKey}&units=metric',
       );
       final request = await client.getUrl(weatherUri).timeout(const Duration(seconds: 5));
       final response = await request.close();
@@ -159,7 +160,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
     // 3. Fallback direct city query
     try {
       final fallbackUri = Uri.parse(
-        'https://api.openweathermap.org/data/2.5/weather?q=Kolkata&appid=f4520e211acc299fc4cc3f4fad4f99f6&units=metric',
+        'https://api.openweathermap.org/data/2.5/weather?q=Kolkata&appid=${AppSecrets.weatherApiKey}&units=metric',
       );
       final request = await client.getUrl(fallbackUri);
       final response = await request.close();

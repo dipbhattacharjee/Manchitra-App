@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/theme.dart';
+import 'core/config/secrets.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/auth/login_screen.dart';
@@ -28,7 +30,7 @@ import 'features/profile/about_manchitra_screen.dart';
 ///   /weather       → WeatherScreen
 /// ============================================================
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Force portrait orientation
@@ -44,6 +46,12 @@ void main() {
     systemNavigationBarColor: AppColors.background,
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
+
+  // Initialize Supabase using safe credentials
+  await Supabase.initialize(
+    url: AppSecrets.supabaseUrl,
+    anonKey: AppSecrets.supabaseAnonKey,
+  );
 
   runApp(const ManchitraApp());
 }

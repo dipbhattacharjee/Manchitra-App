@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Confidential credentials and secrets
+/lib/core/config/secrets.dart
+
