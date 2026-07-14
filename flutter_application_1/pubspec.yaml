@@ -1,0 +1,46 @@
+name: manchitra
+description: "Manchitra — Durga Puja 2026 Pandal Navigation & Discovery App"
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+  # Google Fonts — Playfair Display (headlines) + Nunito Sans (body)
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Note: Fonts are loaded via google_fonts package at runtime.
+  # If you want to bundle fonts locally (recommended for production),
+  # download the font files and declare them here:
+  #
+  # fonts:
+  #   - family: PlayfairDisplay
+  #     fonts:
+  #       - asset: assets/fonts/PlayfairDisplay-Regular.ttf
+  #       - asset: assets/fonts/PlayfairDisplay-Bold.ttf
+  #         weight: 700
+  #   - family: NunitoSans
+  #     fonts:
+  #       - asset: assets/fonts/NunitoSans-Regular.ttf
+  #       - asset: assets/fonts/NunitoSans-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/NunitoSans-Bold.ttf
+  #         weight: 700

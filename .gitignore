@@ -1,0 +1,42 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code related
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+coverage/
+flutter_application_1/.dart_tool/
+flutter_application_1/.flutter-plugins-dependencies
+flutter_application_1/.pub-cache/
+flutter_application_1/.pub/
+flutter_application_1/build/
+flutter_application_1/coverage/
+
+# Android Studio will place build artifacts here
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
