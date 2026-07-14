@@ -141,3 +141,8 @@ app.*.symbols
 
 # Confidential credentials and secrets
 **/lib/core/config/secrets.dart
+
+# Environment files
+.env
+.env.local
+.env.*.local

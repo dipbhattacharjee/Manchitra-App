@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  phone         String?  @unique
+  email         String?  @unique
+  name          String?
+  homeArea      String?
+  groupType     GroupType @default(SOLO)
+  preferredTheme AppTheme @default(TRADITIONAL)
+  createdAt     DateTime @default(now())
+
+  trips         Trip[]
+  savedRoutes   Route[]
+}
+
+enum GroupType {
+  SOLO
+  COUPLE
+  FAMILY
+  GROUP
+}
+
+enum AppTheme {
+  TRADITIONAL
+  COUPLE
+  FAMILY
+  HERITAGE
+}
+
+model Pandal {
+  id             String   @id @default(uuid())
+  name           String
+  area           String        // e.g. "Bagbazar", "Salt Lake"
+  ward           String?
+  committeeName  String?
+  theme          String?       // e.g. "Eco-friendly", "Mythological"
+  description    String?
+  isFeatured2026 Boolean  @default(false)
+  category       PandalCategory @default(THEME_BASED)
+
+  latitude       Float
+  longitude      Float
+  // geoLocation  Unsupported("geography(Point,4326)")  -- add via PostGIS raw SQL
+
+  visitStartTime String?       // e.g. "10:00"
+  visitEndTime   String?       // e.g. "23:00"
+  crowdLevel     CrowdLevel @default(MEDIUM)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  photos         PandalPhoto[]
+  tripStops      TripStop[]
+  routeLegsFrom  RouteLeg[] @relation("LegFrom")
+  routeLegsTo    RouteLeg[] @relation("LegTo")
+
+  @@index([area])
+  @@index([isFeatured2026])
+}
+
+enum PandalCategory {
+  TRADITIONAL_BAROWARI
+  THEME_BASED
+  ECO_FRIENDLY
+  COMMUNITY
+  FAMOUS_HERITAGE
+}
+
+enum CrowdLevel {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+model PandalPhoto {
+  id        String @id @default(uuid())
+  pandalId  String
+  pandal    Pandal @relation(fields: [pandalId], references: [id])
+  url       String
+  isCover   Boolean @default(false)
+}
+
+model Trip {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tripDate  DateTime               // which Puja day (Shashti..Dashami)
+  title     String?                // "Ashtami Evening Hop"
+  createdAt DateTime @default(now())
+
+  stops     TripStop[]
+  route     Route?
+}
+
+model TripStop {
+  id        String  @id @default(uuid())
+  tripId    String
+  trip      Trip    @relation(fields: [tripId], references: [id])
+  pandalId  String
+  pandal    Pandal  @relation(fields: [pandalId], references: [id])
+  visitOrder Int
+  plannedTime String?
+  visited   Boolean @default(false)
+}
+
+model Route {
+  id            String   @id @default(uuid())
+  tripId        String?  @unique
+  trip          Trip?    @relation(fields: [tripId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  routeType     RouteType @default(FASTEST)
+  totalDistanceKm Float
+  totalTimeMin  Int
+  createdAt     DateTime @default(now())
+
+  legs          RouteLeg[]
+}
+
+enum RouteType {
+  FASTEST
+  SHORTEST
+  WALKING_FRIENDLY
+}
+
+model RouteLeg {
+  id            String @id @default(uuid())
+  routeId       String
+  route         Route  @relation(fields: [routeId], references: [id])
+  sequenceOrder Int
+  fromPandalId  String
+  fromPandal    Pandal @relation("LegFrom", fields: [fromPandalId], references: [id])
+  toPandalId    String
+  toPandal      Pandal @relation("LegTo", fields: [toPandalId], references: [id])
+  distanceKm    Float
+  durationMin   Int
+  suggestedMode TransportMode
+}
+
+enum TransportMode {
+  WALK
+  METRO
+  TRAIN
+  CAB
+  AUTO
+}
+
+model FoodPlace {
+  id        String  @id @default(uuid())
+  name      String
+  area      String
+  latitude  Float
+  longitude Float
+  cuisine   String?
+  priceRange String?   // "₹", "₹₹", "₹₹₹"
+  isVeg     Boolean?
+  rating    Float?
+}
+
+model Hotel {
+  id        String  @id @default(uuid())
+  name      String
+  area      String
+  latitude  Float
+  longitude Float
+  priceRange String?
+  rating    Float?
+}
+
+model MetroStation {
+  id        String @id @default(uuid())
+  name      String
+  latitude  Float
+  longitude Float
+  line      String   // "Blue Line", "Green Line" etc.
+}
