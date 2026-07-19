@@ -474,7 +474,7 @@ class _AnimatedDotState extends State<_AnimatedDot>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Transform.translate(
+      builder: (context, child) => Transform.translate(
         offset: Offset(0, _anim.value),
         child: Container(
           width: 8,

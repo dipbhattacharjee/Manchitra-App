@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme/theme.dart';
+import '../../core/services/cloudinary_service.dart';
 import 'profile_data.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -15,6 +18,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
   late TextEditingController _bioController;
+  bool _isUploadingPhoto = false;
 
   @override
   void initState() {
@@ -54,6 +58,96 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     Navigator.pop(context);
+  }
+
+  Future<void> _pickAndUploadProfilePhoto() async {
+    try {
+      final picker = ImagePicker();
+      
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              Text(
+                'Change Profile Photo',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Divider(color: Color(0xFFF1ECE3)),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFFAF101A)),
+                title: Text('Choose from Gallery', style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFFAF101A)),
+                title: Text('Take a Photo', style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      final pickedFile = await picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 500,
+      );
+
+      if (pickedFile == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final file = File(pickedFile.path);
+      final imageUrl = await CloudinaryService.uploadImage(
+        file,
+        folder: 'profile_photos',
+      );
+
+      if (imageUrl == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload profile photo to Cloudinary', style: GoogleFonts.manrope()),
+              backgroundColor: AppColors.tertiary,
+            ),
+          );
+        }
+        setState(() => _isUploadingPhoto = false);
+        return;
+      }
+
+      setState(() {
+        ProfileData.photoUrl = imageUrl;
+        _isUploadingPhoto = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Profile photo updated!', style: GoogleFonts.manrope(fontWeight: FontWeight.bold)),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error updating profile photo: $e');
+      setState(() => _isUploadingPhoto = false);
+    }
   }
 
   @override
@@ -110,62 +204,74 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   children: [
                     const SizedBox(height: 10),
                     // Profile Photo with concentric circles and camera icon overlay
-                    Center(
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFFFFF2F0), width: 2),
-                            ),
-                            child: Container(
+                    GestureDetector(
+                      onTap: _isUploadingPhoto ? null : _pickAndUploadProfilePhoto,
+                      child: Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: const Color(0xFFFFDF9E), width: 2),
+                                border: Border.all(color: const Color(0xFFFFF2F0), width: 2),
                               ),
-                              child: CircleAvatar(
-                                radius: 54,
-                                backgroundImage: NetworkImage(ProfileData.photoUrl),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 4,
-                            right: 4,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFDC003),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 4,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt_outlined,
-                                color: Colors.black87,
-                                size: 20,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFFFFDF9E), width: 2),
+                                ),
+                                child: CircleAvatar(
+                                  radius: 54,
+                                  backgroundImage: NetworkImage(ProfileData.photoUrl),
+                                  child: _isUploadingPhoto
+                                      ? Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.4),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Center(
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        )
+                                      : null,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            Positioned(
+                              bottom: 4,
+                              right: 4,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFDC003),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt_outlined,
+                                  color: Colors.black87,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
                     // Change Photo text button
                     GestureDetector(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Change photo feature coming soon!')),
-                        );
-                      },
+                      onTap: _isUploadingPhoto ? null : _pickAndUploadProfilePhoto,
                       child: Text(
                         'Change Photo',
                         style: GoogleFonts.manrope(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
+import '../pandals/pandal_detail_screen.dart';
 import 'profile_data.dart';
 
 /// ============================================================
@@ -131,6 +132,105 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 32),
+
+              // Liked/Favorite Pandals Section
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'FAVORITE PANDALS (${ProfileData.favoritePandals.length})',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey[500],
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              if (ProfileData.favoritePandals.isEmpty)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: Colors.grey[100]!),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'No favorite pandals added yet.',
+                      style: GoogleFonts.manrope(
+                        color: Colors.grey[400],
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.015),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.grey[100]!),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: ProfileData.favoritePandals.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFF1F1F1)),
+                    itemBuilder: (context, index) {
+                      final pandal = ProfileData.favoritePandals[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: pandal.coverPhotoUrl != null && pandal.coverPhotoUrl!.isNotEmpty
+                              ? Image.network(pandal.coverPhotoUrl!, width: 48, height: 48, fit: BoxFit.cover)
+                              : Container(
+                                  width: 48,
+                                  height: 48,
+                                  color: AppColors.primaryContainer,
+                                  child: const Icon(Icons.temple_hindu, color: AppColors.secondary, size: 20),
+                                ),
+                        ),
+                        title: Text(
+                          pandal.name,
+                          style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          '${pandal.area} • ${pandal.category.label}',
+                          style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PandalDetailScreen(pandal: pandal),
+                            ),
+                          );
+                          if (mounted) setState(() {});
+                        },
+                      );
+                    },
+                  ),
+                ),
 
               const SizedBox(height: 32),
 

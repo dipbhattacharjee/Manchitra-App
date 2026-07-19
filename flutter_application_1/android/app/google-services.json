@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "395160201255",
+    "project_id": "manchitra-app",
+    "storage_bucket": "manchitra-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:395160201255:android:f994a93a54ca81cc330602",
+        "android_client_info": {
+          "package_name": "com.manchitra.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "395160201255-gendtkomiootin1elsqffmhjck63rdkn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZF_94rA6PzMjUMulwz3zUTWp3beetAcM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "395160201255-gendtkomiootin1elsqffmhjck63rdkn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

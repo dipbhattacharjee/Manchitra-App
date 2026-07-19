@@ -384,19 +384,47 @@ class FeaturedPandalCard extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Decorative background patterns
-            Positioned(
-              right: -20,
-              bottom: -20,
-              child: Opacity(
-                opacity: 0.15,
-                child: Icon(
-                  Icons.temple_hindu_rounded,
-                  size: 150,
-                  color: Colors.white.withOpacity(0.6),
+            if (pandal.coverPhotoUrl != null && (pandal.coverPhotoUrl as String).isNotEmpty)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(32),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        pandal.coverPhotoUrl as String,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.05),
+                              Colors.black.withOpacity(0.65),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            if (pandal.coverPhotoUrl == null || (pandal.coverPhotoUrl as String).isEmpty)
+              Positioned(
+                right: -20,
+                bottom: -20,
+                child: Opacity(
+                  opacity: 0.15,
+                  child: Icon(
+                    Icons.temple_hindu_rounded,
+                    size: 150,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -706,13 +734,13 @@ class ManchBottomNav extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
         height: 72,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.92),
-          borderRadius: BorderRadius.circular(40),
-          border: Border.all(color: Colors.white.withOpacity(0.6)),
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(36),
+          border: Border.all(color: Colors.white.withOpacity(0.5)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
-              blurRadius: 20,
+              blurRadius: 15,
               offset: const Offset(0, 8),
             ),
           ],
@@ -721,10 +749,10 @@ class ManchBottomNav extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _navItem(Icons.explore_outlined, Icons.explore, 'Explore', 0),
-            _navItem(Icons.map_outlined, Icons.map, 'Discover', 1),
+            _navItem(Icons.home_outlined, Icons.home, 'Home', 0),
+            _navItem(Icons.map_outlined, Icons.map, 'Map', 1),
             _navItem(Icons.route_outlined, Icons.route, 'Routes', 2),
-            _navItem(Icons.temple_hindu_outlined, Icons.temple_hindu, 'Favorites', 3),
+            _navItem(Icons.calendar_today_outlined, Icons.calendar_today, 'Planning', 3),
             _navItem(Icons.person_outline_rounded, Icons.person_rounded, 'Profile', 4),
           ],
         ),

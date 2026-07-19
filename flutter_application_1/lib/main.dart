@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'core/providers/pandal_provider.dart';
 import 'core/theme/theme.dart';
 import 'core/config/secrets.dart';
 import 'features/splash/splash_screen.dart';
@@ -33,6 +37,22 @@ import 'features/profile/about_manchitra_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase using google-services.json for Android, or explicit options for Web
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyAZF_94rA6PzMjUMulwz3zUTWp3beetAcM',
+        appId: '1:395160201255:web:f994a93a54ca81cc330602',
+        messagingSenderId: '395160201255',
+        projectId: 'manchitra-app',
+        authDomain: 'manchitra-app.firebaseapp.com',
+        storageBucket: 'manchitra-app.firebasestorage.app',
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
+
   // Force portrait orientation
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -50,10 +70,17 @@ Future<void> main() async {
   // Initialize Supabase using safe credentials
   await Supabase.initialize(
     url: AppSecrets.supabaseUrl,
-    anonKey: AppSecrets.supabaseAnonKey,
+    publishableKey: AppSecrets.supabaseAnonKey,
   );
 
-  runApp(const ManchitraApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PandalProvider()),
+      ],
+      child: const ManchitraApp(),
+    ),
+  );
 }
 
 class ManchitraApp extends StatelessWidget {

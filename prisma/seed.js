@@ -49,11 +49,11 @@ const pandalData = [
   },
   {
     name: 'College Square Sarbojanin',
-    area: 'College Street',
+    area: 'Central Kolkata',
     ward: '40',
     committeeName: 'College Square Sarbojanin Durgotsav Committee',
-    theme: 'Grand Palace reflecting over the central lake',
-    description: 'Famous for its illuminated temple structures built over the lake, creating a beautiful reflection at night.',
+    theme: 'Illumination, Waterfront, Heritage',
+    description: 'Renowned for its massive, dazzling light installations. The primary structure is built on a massive lake inside the park, casting a flawless reflection of the illuminated design over the water at night.',
     isFeatured2026: true,
     category: 'FAMOUS_HERITAGE',
     latitude: 22.574697,
@@ -79,11 +79,11 @@ const pandalData = [
   },
   {
     name: 'Suruchi Sangha',
-    area: 'New Alipore',
+    area: 'South Kolkata',
     ward: '81',
     committeeName: 'New Alipore Suruchi Sangha Committee',
-    theme: 'Bengal\'s rural folk heritage and handicraft arts',
-    description: 'Highly popular South Kolkata puja known for its focus on social themes, hand-crafted materials, and state-of-the-art illumination.',
+    theme: 'State-Themes, Cultural Diversity, High Crowd',
+    description: 'Famous for depicting a unique Indian state\'s art, handicraft, and lifestyle traditions every year. The idol\'s features and attire are meticulously styled to mirror the chosen state\'s heritage.',
     isFeatured2026: true,
     category: 'FAMOUS_HERITAGE',
     latitude: 22.519098,
@@ -154,11 +154,11 @@ const pandalData = [
   },
   {
     name: 'Badamtala Ashar Sangha',
-    area: 'Kalighat',
+    area: 'South Kolkata (Kalighat)',
     ward: '83',
     committeeName: 'Badamtala Ashar Sangha Committee',
-    theme: 'Social message of harmony and inclusion',
-    description: 'A historic puja in South Kolkata that consistently wins awards for its creative concepts and minimalist artistic designs.',
+    theme: 'Experimental Theme, Trendsetter, Compact Pandal',
+    description: 'Celebrated as one of the definitive pioneers of modern "theme-based" pujas in Kolkata. Though set within narrow lanes, it showcases highly creative, intimate design motifs that pull heavy crowds yearly.',
     isFeatured2026: false,
     category: 'THEME_BASED',
     latitude: 22.518921,
@@ -272,20 +272,168 @@ const pandalData = [
     visitEndTime: '22:00',
     crowdLevel: 'LOW',
   },
+  {
+    name: 'Deshapriya Park',
+    area: 'South Kolkata',
+    ward: '85',
+    committeeName: 'Deshapriya Park Durga Puja',
+    theme: 'Ganges Revived',
+    description: 'Deshapriya Park 2026 focuses on a water conservation theme, with a stunning pandal built around the concept of a revived Ganges.',
+    isFeatured2026: true,
+    category: 'ECO_FRIENDLY',
+    latitude: 22.5272,
+    longitude: 88.3629,
+    visitStartTime: '09:00',
+    visitEndTime: '23:59',
+    crowdLevel: 'HIGH',
+  },
+  {
+    name: 'Mohammad Ali Park',
+    area: 'Central Kolkata',
+    ward: '43',
+    committeeName: 'Mohammad Ali Park Durga Puja Committee',
+    theme: 'Eco-Future',
+    description: 'A central Kolkata institution known for massive pandal structures and eco-friendly innovation. The 2026 theme explores sustainability.',
+    isFeatured2026: true,
+    category: 'ECO_FRIENDLY',
+    latitude: 22.5751,
+    longitude: 88.3674,
+    visitStartTime: '09:00',
+    visitEndTime: '23:00',
+    crowdLevel: 'VERY_HIGH',
+  },
+  {
+    name: 'Santosh Mitra Square (Bowbazar)',
+    area: 'Central Kolkata',
+    ward: '50',
+    committeeName: 'Santosh Mitra Square Committee',
+    theme: 'Big Budget, Grand Opulence, High Crowd',
+    description: 'One of the most visited big-budget spectacles in central Kolkata. Famous for extravagant setups, ranging from gold/silver clad structures to jaw-dropping replicas of monuments. Expect heavy foot traffic.',
+    isFeatured2026: true,
+    category: 'THEME_BASED',
+    latitude: 22.5684,
+    longitude: 88.3644,
+    visitStartTime: '09:00',
+    visitEndTime: '23:59',
+    crowdLevel: 'VERY_HIGH',
+  },
+  {
+    name: 'Chetla Agrani Club',
+    area: 'South Kolkata (Chetla)',
+    ward: '82',
+    committeeName: 'Chetla Agrani Club Committee',
+    theme: 'Eco-Friendly, Conceptual Art, Award-Winner',
+    description: 'A legendary powerhouse for installation art. It relies heavily on eco-friendly, natural elements (like millions of rudraksha seeds or specialized wood crafts) to tell a profound sociological or spiritual story.',
+    isFeatured2026: true,
+    category: 'ECO_FRIENDLY',
+    latitude: 22.5181,
+    longitude: 88.3444,
+    visitStartTime: '09:00',
+    visitEndTime: '23:59',
+    crowdLevel: 'HIGH',
+  },
 ];
 
 async function main() {
   console.log('Seeding database with Kolkata Durga Puja pandals...');
   
-  // Clean existing pandals
+  // Clean existing photos and pandals
+  await prisma.pandalPhoto.deleteMany();
   await prisma.pandal.deleteMany();
-  console.log('Cleared existing pandal records.');
+  console.log('Cleared existing pandal and photo records.');
 
   for (const p of pandalData) {
     const pandal = await prisma.pandal.create({
       data: p,
     });
     console.log(`Successfully created: ${pandal.name} (${pandal.area})`);
+
+    if (pandal.name === 'Deshapriya Park') {
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784036075/tallest-goddess-durga-idol_kfdgox.webp',
+          isCover: true,
+        }
+      });
+      console.log('Successfully seeded photo for Deshapriya Park');
+    }
+
+    if (pandal.name === 'Bagbazar Sarbojanin Durgotsav') {
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038553/579c3d50-c14f-49f4-accd-1a6d29de66e1_u8k0dq.jpg',
+          isCover: true,
+        }
+      });
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg',
+          isCover: false,
+        }
+      });
+      console.log('Successfully seeded photos for Bagbazar Sarbojanin');
+    }
+
+    if (pandal.name === 'Kumartuli Park Durgotsav') {
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038970/114045851_baf6ub.png',
+          isCover: true,
+        }
+      });
+      console.log('Successfully seeded photo for Kumartuli Park Durgotsav');
+    }
+
+    if (pandal.name === 'Ekdalia Evergreen Club') {
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039236/ekdalia-evergreen_fbvbsr.jpg',
+          isCover: true,
+        }
+      });
+      console.log('Successfully seeded photo for Ekdalia Evergreen Club');
+    }
+
+    if (pandal.name === 'Mohammad Ali Park') {
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039272/inauguration-ceremony-of-the-57th-year-of-youth-association-of-mohammad-ali-park-durga-puja-6_culxki.jpg',
+          isCover: true,
+        }
+      });
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039277/Inauguration-ceremony-of-the-57th-Year-of-Youth-Association-of-Mohammad-Ali-Park-Durga-Puja_2_libo56.jpg',
+          isCover: false,
+        }
+      });
+      console.log('Successfully seeded photos for Mohammad Ali Park');
+    }
+
+    if (pandal.name === 'Jorasanko Dawn Bari') {
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg',
+          isCover: true,
+        }
+      });
+      await prisma.pandalPhoto.create({
+        data: {
+          pandalId: pandal.id,
+          url: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg',
+          isCover: false,
+        }
+      });
+      console.log('Successfully seeded photos for Jorasanko Dawn Bari');
+    }
   }
   
   console.log('Database seeding finished successfully!');

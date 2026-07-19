@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/theme.dart';
 import '../../core/models/models.dart';
+import '../../core/providers/pandal_provider.dart';
 import '../../shared/widgets/common_widgets.dart';
 import '../pandals/pandal_detail_screen.dart';
+import '../pandals/puja_directory_screen.dart';
 import '../discover/discover_screen.dart';
 import '../route/hop_route_screen.dart';
 import '../profile/profile_screen.dart';
 import '../calendar/trip_calendar_screen.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 
 /// ============================================================
 /// MANCHITRA — Home Screen (Stitch Redesign)
@@ -21,31 +25,39 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentNavIndex = 0;
-  final List<String> _hopList = ['Sreebhumi Sporting Club', 'Ahiritola Sarbojanin'];
+  String? _searchQueryForDiscover;
 
-  void _addToHop(String name) {
-    if (!_hopList.contains(name)) {
-      setState(() {
-        _hopList.add(name);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added $name to your Hop List!'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+  void _addToHop(BuildContext context, String id) {
+    final provider = context.read<PandalProvider>();
+    final pandal = provider.pandals.firstWhere(
+      (p) => p.id == id,
+      orElse: () => SampleData.featuredPandals.firstWhere(
+        (p) => p.id == id,
+        orElse: () => SampleData.featuredPandals.first,
+      ),
+    );
+    provider.addToRoute(pandal);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added ${pandal.name} to your Hop List!'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
-  Widget _buildPage() {
+  Widget _buildPage(List<String> hopList) {
     switch (_currentNavIndex) {
       case 1:
-        return const DiscoverScreen();
+        return DiscoverScreen(initialSearchQuery: _searchQueryForDiscover);
       case 2:
         return const HopRouteScreen();
       case 3:
-        return const TripCalendarScreen();
+        return TripCalendarScreen(
+          onBack: () {
+            setState(() => _currentNavIndex = 0);
+          },
+        );
       case 4:
         return ProfileScreen(
           onLogout: () {
@@ -57,10 +69,16 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       default:
         return _HomeContent(
-          hopList: _hopList,
-          onAddToHop: _addToHop,
+          hopList: hopList,
+          onAddToHop: (id) => _addToHop(context, id),
           onNavigateToExplore: () {
             setState(() => _currentNavIndex = 1);
+          },
+          onSearch: (q) {
+            setState(() {
+              _searchQueryForDiscover = q;
+              _currentNavIndex = 1;
+            });
           },
         );
     }
@@ -68,18 +86,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final routeStops = context.watch<PandalProvider>().routeStops;
+    final hopList = routeStops.map((p) => p.id).toList();
+
     return Scaffold(
       backgroundColor: AppColors.background,
+      extendBody: true,
       body: Stack(
         children: [
-          Positioned.fill(child: _buildPage()),
+          Positioned.fill(child: _buildPage(hopList)),
         ],
       ),
       bottomNavigationBar: _currentNavIndex == 4
           ? null
           : ManchBottomNav(
               currentIndex: _currentNavIndex,
-              onTap: (i) => setState(() => _currentNavIndex = i),
+              onTap: (i) => setState(() {
+                if (i != 1) {
+                  _searchQueryForDiscover = null;
+                }
+                _currentNavIndex = i;
+              }),
             ),
     );
   }
@@ -91,22 +118,33 @@ class _HomeContent extends StatelessWidget {
     required this.hopList,
     required this.onAddToHop,
     required this.onNavigateToExplore,
+    required this.onSearch,
   });
 
   final List<String> hopList;
   final Function(String) onAddToHop;
   final VoidCallback onNavigateToExplore;
+  final Function(String) onSearch;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. App Bar Header (Brand name + notification)
-          SafeArea(
-            child: Padding(
+    final provider = context.watch<PandalProvider>();
+    final isDataLoading = provider.isLoading;
+
+    final displayTopPandals = provider.pandals.where((p) => p.isFeatured2026).toList();
+    final topList = displayTopPandals.isEmpty ? SampleData.featuredPandals : displayTopPandals;
+
+    final displayNearby = provider.pandals;
+    final nearbyList = displayNearby.isEmpty ? SampleData.featuredPandals : displayNearby;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 120),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. App Bar Header (Brand name + notification)
+            Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -142,7 +180,6 @@ class _HomeContent extends StatelessWidget {
                 ],
               ),
             ),
-          ),
 
           // 2. Search Bar
           Padding(
@@ -159,10 +196,16 @@ class _HomeContent extends StatelessWidget {
                     padding: EdgeInsets.only(left: 18, right: 12),
                     child: Icon(Icons.search, color: Colors.grey, size: 22),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search pandals, locations, themes...',
+                      onSubmitted: (val) {
+                        if (val.trim().isNotEmpty) {
+                          onSearch(val.trim());
+                        }
+                      },
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        hintText: 'Search pandals or areas...',
                         hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -171,16 +214,30 @@ class _HomeContent extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(6.0),
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
+                  GestureDetector(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Voice search feature coming soon!'),
+                          backgroundColor: AppColors.primary,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.mic, color: Colors.white, size: 18),
                       ),
-                      child: const Icon(Icons.mic, color: Colors.white, size: 18),
                     ),
                   ),
                 ],
@@ -234,7 +291,14 @@ class _HomeContent extends StatelessWidget {
             child: SectionHeader(
               title: 'Today\'s Top Pandals',
               actionLabel: 'See All',
-              onAction: () {},
+              onAction: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PujaDirectoryScreen(),
+                  ),
+                );
+              },
             ),
           ),
           SizedBox(
@@ -242,9 +306,12 @@ class _HomeContent extends StatelessWidget {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: SampleData.featuredPandals.length,
+              itemCount: isDataLoading ? 3 : topList.length,
               itemBuilder: (context, i) {
-                final pandal = SampleData.featuredPandals[i];
+                if (isDataLoading) {
+                  return const FeaturedPandalCardSkeleton();
+                }
+                final pandal = topList[i];
                 return FeaturedPandalCard(
                   pandal: pandal,
                   onTap: () => Navigator.push(
@@ -273,9 +340,12 @@ class _HomeContent extends StatelessWidget {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: SampleData.featuredPandals.length,
+              itemCount: isDataLoading ? 3 : nearbyList.length,
               itemBuilder: (context, i) {
-                final pandal = SampleData.featuredPandals[i];
+                if (isDataLoading) {
+                  return const NearbyPandalCardSkeleton();
+                }
+                final pandal = nearbyList[i];
                 final isInHop = hopList.contains(pandal.id);
                 return Container(
                   width: 220,
@@ -514,8 +584,9 @@ class _HomeContent extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildQuickChip({
     required IconData icon,

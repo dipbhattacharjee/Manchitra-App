@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
 import '../../core/config/secrets.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 
 /// ============================================================
 /// MANCHITRA — Festival Weather Planner Screen
@@ -117,7 +118,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         }
       }
     } catch (e) {
-      print('Location fetch error: $e');
+      debugPrint('Location fetch error: $e');
     }
 
     try {
@@ -154,7 +155,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         return;
       }
     } catch (e) {
-      print('Weather fetch coordinates error: $e');
+      debugPrint('Weather fetch coordinates error: $e');
     }
 
     // 3. Fallback direct city query
@@ -190,7 +191,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         return;
       }
     } catch (e) {
-      print('Fallback Weather fetch error: $e');
+      debugPrint('Fallback Weather fetch error: $e');
     }
 
     if (mounted) {
@@ -237,11 +238,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFAF101A)),
-                      ),
-                    )
+                  ? const WeatherScreenSkeleton()
                   : SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                       child: Column(
@@ -312,19 +309,25 @@ class _WeatherScreenState extends State<WeatherScreen> {
                                         color: Colors.white,
                                       ),
                                     ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        _globalCondition.toUpperCase(),
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 0.5,
+                                    const SizedBox(width: 12),
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          _globalCondition.toUpperCase(),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.manrope(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            letterSpacing: 0.5,
+                                          ),
                                         ),
                                       ),
                                     ),

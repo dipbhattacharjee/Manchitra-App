@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import 'route_optimizer.dart';
 
@@ -134,7 +135,7 @@ class RouteService {
       final effectiveUserId = userId ?? activeUser?.id;
 
       if (effectiveUserId == null) {
-        print('RouteService: Cannot save route. No user is logged in.');
+        debugPrint('RouteService: Cannot save route. No user is logged in.');
         return;
       }
 
@@ -164,9 +165,9 @@ class RouteService {
       }
 
       await _client.from('RouteLeg').insert(legsToInsert);
-      print('RouteService: Route saved to Supabase successfully.');
+      debugPrint('RouteService: Route saved to Supabase successfully.');
     } catch (e) {
-      print('RouteService saveRoute error: $e');
+      debugPrint('RouteService saveRoute error: $e');
     }
   }
 }

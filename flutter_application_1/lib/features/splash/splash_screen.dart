@@ -106,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
                   // Logo
                   AnimatedBuilder(
                     animation: _logoController,
-                    builder: (_, __) => Opacity(
+                    builder: (context, child) => Opacity(
                       opacity: _logoOpacity.value,
                       child: Transform.scale(
                         scale: _logoScale.value,
@@ -123,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
             // App name + tagline
             AnimatedBuilder(
               animation: _textController,
-              builder: (_, __) => Opacity(
+              builder: (context, child) => Opacity(
                 opacity: _textOpacity.value,
                 child: Transform.translate(
                   offset: Offset(0, _textSlide.value),
@@ -158,7 +158,7 @@ class _SplashScreenState extends State<SplashScreen>
             // Loading indicator
             AnimatedBuilder(
               animation: _textController,
-              builder: (_, __) => Opacity(
+              builder: (context, child) => Opacity(
                 opacity: _textOpacity.value,
                 child: SizedBox(
                   width: 40,
@@ -180,7 +180,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget _buildRippleRing(int index) {
     return AnimatedBuilder(
       animation: _rippleController,
-      builder: (_, __) {
+      builder: (context, child) {
         // Stagger the rings
         final offset = index / 3.0;
         final value = (_rippleController.value + offset) % 1.0;
