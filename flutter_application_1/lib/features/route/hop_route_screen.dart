@@ -329,7 +329,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                       color: const Color(0xFFFFF2F0),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         width: 4,
                       ),
                     ),
@@ -486,7 +486,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.35),
+                      color: AppColors.primary.withValues(alpha: 0.35),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -497,7 +497,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -526,7 +526,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                             style: TextStyle(
                               fontFamily: 'Manrope',
                               fontSize: 11,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -855,7 +855,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                                           stops: activeRoute.stops,
                                           tripDate: tripDate,
                                         );
-                                    if (success && context.mounted) {
+                                    if (success && mounted) {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
@@ -1157,7 +1157,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -1217,7 +1217,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -1541,7 +1541,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFFFFF6F5),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1553,7 +1553,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                   style: TextStyle(
                     fontFamily: 'Manrope',
                     fontSize: 11,
-                    color: AppColors.primary.withOpacity(0.9),
+                    color: AppColors.primary.withValues(alpha: 0.9),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1791,14 +1791,14 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
   ) {
     return ListView.separated(
       itemCount: places.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (context, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final place = places[index];
         final isAlreadyAdded = provider.routeStops.any((s) => s.id == place.id);
 
         return ListTile(
           leading: CircleAvatar(
-            backgroundColor: place.placeType.color.withOpacity(0.12),
+            backgroundColor: place.placeType.color.withValues(alpha: 0.12),
             child: Icon(
               place.placeType.icon,
               color: place.placeType.color,
