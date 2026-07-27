@@ -57,6 +57,13 @@ class PanjikaService {
           'Marks the auspicious beginning of Devi Paksha and Goddess Durga\'s arrival journey to Earth.',
     ),
     const PujaDay(
+      name: 'Maha Panchami',
+      dateString: '2026-10-15',
+      rituals: ['Upachara Puja', 'Bilva Tree Invocation', 'Mandap Inaugurations'],
+      description:
+          'Welcoming of Goddess Durga with evening mandap inaugurations and preliminary Kalparambha rituals across Kolkata.',
+    ),
+    const PujaDay(
       name: 'Maha Shashthi',
       dateString: '2026-10-16',
       rituals: ['Bilva Nimantran', 'Kalparambha', 'Bodhon', 'Adhivas'],

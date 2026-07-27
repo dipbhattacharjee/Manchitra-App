@@ -17,6 +17,7 @@ import '../../shared/widgets/skeleton_loader.dart';
 import 'festival_highlights_screen.dart';
 import '../location/location_picker_screen.dart';
 import '../../core/services/curated_route_service.dart';
+import '../../shared/widgets/notification_bell_badge.dart';
 
 /// ============================================================
 /// MANCHITRA — Home Screen
@@ -187,24 +188,7 @@ class _HomeContent extends StatelessWidget {
                       letterSpacing: -0.5,
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/notifications');
-                    },
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.notifications_none_rounded,
-                        color: Colors.black,
-                        size: 22,
-                      ),
-                    ),
-                  ),
+                  const NotificationBellBadge(),
                 ],
               ),
             ),

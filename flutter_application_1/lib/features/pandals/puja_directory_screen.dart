@@ -8,6 +8,7 @@ import '../../core/services/github_pandal_service.dart';
 import 'pandal_detail_screen.dart';
 import '../../shared/widgets/loading/loading.dart';
 import '../../shared/widgets/states/skeleton_loaders.dart';
+import '../../shared/widgets/notification_bell_badge.dart';
 
 /// ============================================================
 /// MANCHITRA — Kolkata Puja Directory Screen (See All Pujas)
@@ -158,6 +159,9 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
           letterSpacing: 0.2,
         ),
       ),
+      actions: const [
+        NotificationBellBadge(),
+      ],
     );
   }
 

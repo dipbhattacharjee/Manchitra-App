@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
+import '../../core/models/models.dart';
+import '../../core/providers/pandal_provider.dart';
+import '../../shared/widgets/notification_bell_badge.dart';
 import '../pandals/pandal_detail_screen.dart';
+import '../route/hop_route_screen.dart';
 import 'profile_data.dart';
 import '../../shared/widgets/states/skeleton_loaders.dart';
+import 'package:provider/provider.dart';
 
 /// ============================================================
 /// MANCHITRA — Profile Screen
@@ -51,16 +56,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'Profile',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFFB71C1C),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined, color: Color(0xFFAF101A)),
-                      onPressed: () async {
-                        await Navigator.pushNamed(context, '/settings');
-                        if (mounted) setState(() {});
-                      },
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const NotificationBellBadge(),
+                        IconButton(
+                          icon: const Icon(Icons.settings_outlined, color: Color(0xFFAF101A)),
+                          onPressed: () async {
+                            await Navigator.pushNamed(context, '/settings');
+                            if (mounted) setState(() {});
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -237,6 +248,143 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           );
                           if (mounted) setState(() {});
                         },
+                      );
+                    },
+                  ),
+                ),
+
+              const SizedBox(height: 28),
+
+              // Saved Routes Section Title
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'MY SAVED ROUTES',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey[500],
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Saved Routes List / Card
+              if (ProfileData.savedRoutes.isEmpty)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.bookmark_border_rounded, color: AppColors.secondary, size: 28),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'No saved routes yet',
+                              style: GoogleFonts.manrope(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Create a day plan in Puja Trip Planner and tap "Save Plan"',
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.015),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                    border: Border.all(color: Colors.grey[100]!),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: ProfileData.savedRoutes.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFF1F1F1)),
+                    itemBuilder: (context, index) {
+                      final plan = ProfileData.savedRoutes[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        leading: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF2F0),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.alt_route_rounded, color: AppColors.primary, size: 22),
+                        ),
+                        title: Text(
+                          'Maha ${plan.pujaDay} Plan',
+                          style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                        subtitle: Text(
+                          '${plan.stops.length} scheduled stops • Oct ${plan.date.day}, 2026',
+                          style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                        trailing: ElevatedButton(
+                          onPressed: () {
+                            final provider = context.read<PandalProvider>();
+                            final matchedPandals = <Pandal>[];
+                            for (final s in plan.stops) {
+                              final match = provider.pandals.where((p) => p.id == s.pandalId);
+                              if (match.isNotEmpty) {
+                                matchedPandals.add(match.first);
+                              }
+                            }
+                            if (matchedPandals.isNotEmpty) {
+                              provider.setRouteStops(matchedPandals);
+                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => HopRouteScreen(plannedDate: plan.date),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: const Text('Open Map', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
                       );
                     },
                   ),

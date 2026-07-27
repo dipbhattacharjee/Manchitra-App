@@ -10,6 +10,8 @@ import '../pandals/pandal_detail_screen.dart';
 import '../route/hop_route_screen.dart';
 import '../../core/services/panjika_service.dart';
 import '../../core/services/calendar_sync_service.dart';
+import '../../shared/widgets/notification_bell_badge.dart';
+import '../profile/profile_data.dart';
 
 /// ============================================================
 /// MANCHITRA — Real Portable Trip Planning Calendar Screen
@@ -66,13 +68,23 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
 
   void _syncTabWithDate(DateTime date) {
     if (date.month == 10) {
-      if (date.day == 10) _selectedDayTab = 'Mahalaya';
-      else if (date.day == 16) _selectedDayTab = 'Sasthi';
-      else if (date.day == 17) _selectedDayTab = 'Saptami';
-      else if (date.day == 18) _selectedDayTab = 'Ashtami';
-      else if (date.day == 19) _selectedDayTab = 'Navami';
-      else if (date.day == 20) _selectedDayTab = 'Dashami';
-      else _selectedDayTab = 'Oct ${date.day}';
+      if (date.day == 10) {
+        _selectedDayTab = 'Mahalaya';
+      } else if (date.day == 15) {
+        _selectedDayTab = 'Panchami';
+      } else if (date.day == 16) {
+        _selectedDayTab = 'Sasthi';
+      } else if (date.day == 17) {
+        _selectedDayTab = 'Saptami';
+      } else if (date.day == 18) {
+        _selectedDayTab = 'Ashtami';
+      } else if (date.day == 19) {
+        _selectedDayTab = 'Navami';
+      } else if (date.day == 20) {
+        _selectedDayTab = 'Dashami';
+      } else {
+        _selectedDayTab = 'Oct ${date.day}';
+      }
     } else {
       _selectedDayTab = '${_monthName(date.month).substring(0, 3)} ${date.day}';
     }
@@ -129,7 +141,7 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
               )
             : (Navigator.of(context).canPop()
                 ? IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87, size: 20),
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
                     onPressed: () => Navigator.pop(context),
                   )
                 : null),
@@ -153,17 +165,7 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none_rounded, color: Colors.black87, size: 24),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('No unread notifications.'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
+          const NotificationBellBadge(),
         ],
       ),
       body: Stack(
@@ -428,6 +430,7 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
     String? getPujaTitle(int day) {
       if (_currentMonth.month == 10 && _currentMonth.year == 2026) {
         if (day == 10) return 'Mahalaya';
+        if (day == 15) return 'Panchami';
         if (day == 16) return 'Sasthi';
         if (day == 17) return 'Saptami';
         if (day == 18) return 'Ashtami';
@@ -438,15 +441,15 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -455,7 +458,7 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Month Header & Navigation (Fixed for zero right overflow)
+          // Month Header & Navigation
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -501,13 +504,14 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
           // Weekdays Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: weekdays.map((w) => SizedBox(
               width: 28,
+              height: 20,
               child: Center(
                 child: Text(
                   w,
@@ -520,18 +524,18 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
               ),
             )).toList(),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
-          // Calendar Days Grid
+          // Calendar Days Grid (Compact row height & cell margin)
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: gridDays.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
-              childAspectRatio: 1.1,
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
+              childAspectRatio: 1.25,
             ),
             itemBuilder: (context, index) {
               final dayVal = gridDays[index];
@@ -600,6 +604,7 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
   Widget _buildPujaDayTabs() {
     final List<Map<String, dynamic>> tabs = [
       {'key': 'Mahalaya', 'date': DateTime(2026, 10, 10), 'label': 'OCT 10'},
+      {'key': 'Panchami', 'date': DateTime(2026, 10, 15), 'label': 'OCT 15'},
       {'key': 'Sasthi', 'date': DateTime(2026, 10, 16), 'label': 'OCT 16'},
       {'key': 'Saptami', 'date': DateTime(2026, 10, 17), 'label': 'OCT 17'},
       {'key': 'Ashtami', 'date': DateTime(2026, 10, 18), 'label': 'OCT 18'},
@@ -936,7 +941,7 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
             ),
           ),
 
-        // Action Bar for the Day
+        // Action Bar for the Day with Save Plan button
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
           child: Row(
@@ -950,17 +955,62 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
                   color: Colors.black87,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => _showAddPandalFromDatabaseSheet(provider),
-                icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
-                label: Text(
-                  'Add Stop',
-                  style: GoogleFonts.manrope(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+              Row(
+                children: [
+                  if (displayPandals.isNotEmpty)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final success = await ProfileData.saveRoutePlanToProfile(
+                          pujaDay: _selectedDayTab,
+                          date: _selectedDate,
+                          pandals: displayPandals,
+                        );
+                        if (success && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Saved $_selectedDayTab route plan to your Profile!'),
+                              backgroundColor: const Color(0xFF2A8A4A),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFF2F0),
+                        foregroundColor: AppColors.primary,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: AppColors.primary, width: 1),
+                        ),
+                      ),
+                      icon: const Icon(Icons.bookmark_add_outlined, size: 14, color: AppColors.primary),
+                      label: Text(
+                        'Save Plan',
+                        style: GoogleFonts.manrope(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 4),
+                  TextButton.icon(
+                    onPressed: () => _showAddPandalFromDatabaseSheet(provider),
+                    icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+                    label: Text(
+                      'Add Stop',
+                      style: GoogleFonts.manrope(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
