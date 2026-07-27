@@ -105,16 +105,23 @@ class PandalProvider extends ChangeNotifier {
 
       _pandals = results;
 
-      // Fallback if DB returns empty on startup
-      if (_pandals.isEmpty &&
+      // If DB has fewer items than full map_server repo (~182), fetch & merge GitHub data
+      if (_pandals.length < 50 &&
           _searchQuery.isEmpty &&
           _selectedCategory == 'All' &&
           _selectedArea == 'All' &&
           !_featuredOnly) {
         final githubPandals = await GithubPandalService.fetchPandalsFromGitHub();
         if (githubPandals.isNotEmpty) {
-          _pandals = githubPandals;
-        } else {
+          final Map<String, Pandal> map = {};
+          for (final p in _pandals) {
+            map[p.name.trim().toLowerCase()] = p;
+          }
+          for (final p in githubPandals) {
+            map.putIfAbsent(p.name.trim().toLowerCase(), () => p);
+          }
+          _pandals = map.values.toList();
+        } else if (_pandals.isEmpty) {
           _pandals = SampleData.featuredPandals;
         }
       }

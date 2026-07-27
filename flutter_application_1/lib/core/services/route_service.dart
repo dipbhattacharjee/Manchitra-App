@@ -28,17 +28,19 @@ class RouteService {
   final _client = Supabase.instance.client;
 
   /// Generate 3 route variants: Fastest, Shortest, and Walking Friendly
-  List<HopRoute> generateRouteVariants(List<Pandal> stops, double startLat, double startLng) {
+  List<HopRoute> generateRouteVariants(List<Pandal> stops, double startLat, double startLng, {bool preserveOrder = false}) {
     if (stops.isEmpty) return [];
 
-    // 1. Optimize stop sequence using TSP Nearest Neighbor + 2-opt
-    final List<Pandal> optimizedStops = RouteOptimizer.optimizeRoute(stops, startLat, startLng);
+    // 1. Optimize stop sequence using TSP Nearest Neighbor + 2-opt unless user manually reordered
+    final List<Pandal> orderedStops = preserveOrder
+        ? List<Pandal>.from(stops)
+        : RouteOptimizer.optimizeRoute(stops, startLat, startLng);
 
     // 2. Build 3 variants
     return [
-      _buildVariant(optimizedStops, RouteType.fastest, startLat, startLng),
-      _buildVariant(optimizedStops, RouteType.shortest, startLat, startLng),
-      _buildVariant(optimizedStops, RouteType.walkingFriendly, startLat, startLng),
+      _buildVariant(orderedStops, RouteType.fastest, startLat, startLng),
+      _buildVariant(orderedStops, RouteType.shortest, startLat, startLng),
+      _buildVariant(orderedStops, RouteType.walkingFriendly, startLat, startLng),
     ];
   }
 

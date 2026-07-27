@@ -42,14 +42,18 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
   bool _isSaving = false;
   bool _isOptimizing = false;
   bool _hasInitializedFromHopList = false;
+  bool _isCustomOrdered = false;
 
   Future<void> _runOptimization(PandalProvider provider) async {
     if (_isOptimizing) return;
     setState(() => _isOptimizing = true);
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 300));
     provider.optimizeRoute();
     if (mounted) {
-      setState(() => _isOptimizing = false);
+      setState(() {
+        _isCustomOrdered = false;
+        _isOptimizing = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Route reordered for shortest travel time.'),
@@ -147,10 +151,13 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
 
   void _swapStops(int index1, int index2) {
     context.read<PandalProvider>().swapStops(index1, index2);
+    setState(() {
+      _isCustomOrdered = true;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Stops reordered and route recalculated!'),
-        duration: Duration(seconds: 1),
+        content: Text('Stops reordered!'),
+        duration: Duration(milliseconds: 800),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -166,9 +173,9 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
           children: [
             IconButton(
               icon: const Icon(
-                Icons.arrow_back_ios_new_rounded,
+                Icons.arrow_back,
                 color: Colors.black87,
-                size: 20,
+                size: 24,
               ),
               onPressed: () {
                 if (widget.onBack != null) {
@@ -268,7 +275,12 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
 
     // Reactively generate route variants based on provider stops
     final routeVariants = activeStops.isNotEmpty
-        ? _routeService.generateRouteVariants(activeStops, startLat, startLng)
+        ? _routeService.generateRouteVariants(
+            activeStops,
+            startLat,
+            startLng,
+            preserveOrder: _isCustomOrdered,
+          )
         : <HopRoute>[];
 
     final activeRoute = routeVariants.isNotEmpty
@@ -962,32 +974,17 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                           badgeTextColor: isVisited
                               ? const Color(0xFF2A8A4A)
                               : AppColors.primary,
-                          markerWidget: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                if (isVisited) {
-                                  _visitedPandalIds.remove(stop.id);
-                                } else {
-                                  _visitedPandalIds.add(stop.id);
-                                }
-                              });
-                            },
-                            child: Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: isVisited
-                                    ? const Color(0xFF2A8A4A)
-                                    : stop.placeType.color,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                isVisited ? Icons.check : stop.placeType.icon,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ),
-                          ),
+                          pandal: stop,
+                          isVisited: isVisited,
+                          onToggleVisited: () {
+                            setState(() {
+                              if (isVisited) {
+                                _visitedPandalIds.remove(stop.id);
+                              } else {
+                                _visitedPandalIds.add(stop.id);
+                              }
+                            });
+                          },
                           onTap: () {
                             Navigator.push(
                               context,
@@ -1279,7 +1276,10 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
     required String badgeText,
     required Color badgeBg,
     required Color badgeTextColor,
-    required Widget markerWidget,
+    Widget? markerWidget,
+    Pandal? pandal,
+    bool isVisited = false,
+    VoidCallback? onToggleVisited,
     bool isStart = false,
     bool showReorder = false,
     VoidCallback? onMoveUp,
@@ -1287,6 +1287,92 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
     VoidCallback? onRemove,
     VoidCallback? onTap,
   }) {
+    Widget avatarWidget;
+    if (isStart || pandal == null) {
+      avatarWidget = markerWidget ??
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: Colors.blueGrey,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.my_location, color: Colors.white, size: 20),
+          );
+    } else {
+      final String? imageUrl = (pandal.coverPhotoUrl != null &&
+              pandal.coverPhotoUrl!.trim().isNotEmpty)
+          ? pandal.coverPhotoUrl
+          : (pandal.photoUrls.isNotEmpty &&
+                  pandal.photoUrls.first.trim().isNotEmpty)
+              ? pandal.photoUrls.first
+              : null;
+
+      Widget imgContent;
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        imgContent = ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            imageUrl,
+            width: 44,
+            height: 44,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isVisited
+                    ? const Color(0xFF2A8A4A)
+                    : pandal.placeType.color,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isVisited ? Icons.check : pandal.placeType.icon,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        );
+      } else {
+        imgContent = Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: isVisited
+                ? const Color(0xFF2A8A4A)
+                : pandal.placeType.color,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            isVisited ? Icons.check : pandal.placeType.icon,
+            color: Colors.white,
+            size: 20,
+          ),
+        );
+      }
+
+      avatarWidget = GestureDetector(
+        onTap: onToggleVisited,
+        child: Stack(
+          children: [
+            imgContent,
+            if (isVisited)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A8A4A).withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.check_circle_rounded,
+                      color: Colors.white, size: 22),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1296,22 +1382,27 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
           border: Border.all(color: const Color(0xFFF0EAE1)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            markerWidget,
-            const SizedBox(width: 14),
+            avatarWidget,
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -1332,8 +1423,7 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                           ),
                         ),
                       ),
-                      if (crowd != null) ...[
-                        const SizedBox(width: 8),
+                      if (crowd != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
@@ -1352,75 +1442,81 @@ class _HopRouteScreenState extends State<HopRouteScreen> {
                             ),
                           ),
                         ),
-                      ],
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    sub,
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 ],
               ),
             ),
-            if (showReorder)
+            if (showReorder) ...[
+              const SizedBox(width: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (onMoveUp != null)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.keyboard_arrow_up_rounded,
-                        color: AppColors.primary,
-                        size: 24,
+                    InkWell(
+                      onTap: onMoveUp,
+                      borderRadius: BorderRadius.circular(12),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        child: Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          color: Color(0xFFB71C1C),
+                          size: 22,
+                        ),
                       ),
-                      onPressed: onMoveUp,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
                     ),
                   if (onMoveDown != null)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: AppColors.primary,
-                        size: 24,
+                    InkWell(
+                      onTap: onMoveDown,
+                      borderRadius: BorderRadius.circular(12),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        child: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFFB71C1C),
+                          size: 22,
+                        ),
                       ),
-                      onPressed: onMoveDown,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
                     ),
-                  if (onRemove != null) ...[
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.grey,
-                        size: 18,
+                  if (onRemove != null)
+                    InkWell(
+                      onTap: onRemove,
+                      borderRadius: BorderRadius.circular(12),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.grey,
+                          size: 18,
+                        ),
                       ),
-                      onPressed: onRemove,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Remove stop',
                     ),
-                  ],
                 ],
               ),
+            ],
           ],
         ),
       ),

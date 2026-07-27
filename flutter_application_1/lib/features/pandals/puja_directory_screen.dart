@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
 import '../../core/models/models.dart';
 import '../../core/services/supabase_service.dart';
+import '../../core/services/github_pandal_service.dart';
 import 'pandal_detail_screen.dart';
-import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/loading/loading.dart';
 import '../../shared/widgets/states/skeleton_loaders.dart';
 
@@ -25,44 +26,82 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
   bool _isLoading = true;
   String _activeTab = 'Community'; // 'Community' or 'BonediBari'
   String _searchQuery = '';
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _fetchPandals();
-    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    setState(() {
-      _searchQuery = _searchController.text;
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          _searchQuery = query;
+        });
+      }
     });
   }
 
   Future<void> _fetchPandals() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
+      // 1. Fetch from Supabase DB
       var data = await SupabaseService.instance.getPandals();
+
+      // 2. If DB returns fewer items than full map_server repo (~182), fetch & merge GitHub data
+      if (data.length < 50) {
+        final githubPandals = await GithubPandalService.fetchPandalsFromGitHub();
+        if (githubPandals.isNotEmpty) {
+          final Map<String, Pandal> pandalMap = {};
+          for (final p in data) {
+            pandalMap[p.name.trim().toLowerCase()] = p;
+          }
+          for (final p in githubPandals) {
+            pandalMap.putIfAbsent(p.name.trim().toLowerCase(), () => p);
+          }
+          data = pandalMap.values.toList();
+        }
+      }
+
       if (data.isEmpty) {
         data = SampleData.featuredPandals;
       }
-      setState(() {
-        _allPandals = data;
-        _isLoading = false;
-      });
+
+      if (mounted) {
+        setState(() {
+          _allPandals = data;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error fetching directory pandals: $e');
-      setState(() {
-        _allPandals = SampleData.featuredPandals;
-        _isLoading = false;
-      });
+      try {
+        final ghData = await GithubPandalService.fetchPandalsFromGitHub();
+        if (mounted) {
+          setState(() {
+            _allPandals = ghData.isNotEmpty ? ghData : SampleData.featuredPandals;
+            _isLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _allPandals = SampleData.featuredPandals;
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -91,12 +130,35 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
       list = list.where((p) {
         final nameMatch = p.name.toLowerCase().contains(query);
         final areaMatch = p.area.toLowerCase().contains(query);
+        final committeeMatch = p.committeeName?.toLowerCase().contains(query) ?? false;
+        final descMatch = p.description?.toLowerCase().contains(query) ?? false;
         final themeMatch = p.theme?.toLowerCase().contains(query) ?? false;
-        return nameMatch || areaMatch || themeMatch;
+        return nameMatch || areaMatch || committeeMatch || descMatch || themeMatch;
       }).toList();
     }
 
     return list;
+  }
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: const Color(0xFFFAF6F0),
+      elevation: 0,
+      centerTitle: false,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      title: Text(
+        'Kolkata Puja Directory',
+        style: GoogleFonts.manrope(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFFB71C1C), // deep puja red
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
   }
 
   @override
@@ -104,82 +166,59 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
     final filteredList = _getFilteredPandals();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFAF5),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFCFAF5),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Kolkata Puja Directory',
-          style: GoogleFonts.manrope(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-      ),
+      backgroundColor: const Color(0xFFFAF6F0),
+      appBar: _buildAppBar(context),
       body: Column(
         children: [
-          // 1. Search Bar Input
+          // 1. Search Bar Input Fix
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Container(
-              height: 52,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: Colors.grey[200]!),
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.015),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
+                border: Border.all(color: const Color(0xFFEADCD5)),
               ),
-              child: Row(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(left: 18, right: 12),
-                    child: Icon(Icons.search, color: Colors.grey, size: 20),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Search by name, area, or theme...',
-                        hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  if (_isLoading && _searchQuery.isNotEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: AppSpinner(size: 16, strokeWidth: 2.0),
-                    ),
-                  if (_searchQuery.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
-                      onPressed: () => _searchController.clear(),
-                    ),
-                ],
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: GoogleFonts.manrope(fontSize: 15, color: Colors.black87),
+                decoration: InputDecoration(
+                  hintText: 'Search by name, area, or theme...',
+                  hintStyle: GoogleFonts.manrope(color: Colors.grey.shade500, fontSize: 14),
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            _onSearchChanged('');
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                ),
               ),
             ),
           ),
 
-          // 2. Custom Tabs Selector
+          // 2. Custom Tabs Selector (Barowari vs Bonedi Bari)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
             child: Container(
               height: 48,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.grey[200]!),
+                border: Border.all(color: const Color(0xFFEADCD5)),
               ),
               padding: const EdgeInsets.all(4),
               child: Row(
@@ -187,9 +226,10 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () => setState(() => _activeTab = 'Community'),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
-                          color: _activeTab == 'Community' ? const Color(0xFFAF101A) : Colors.transparent,
+                          color: _activeTab == 'Community' ? const Color(0xFFB71C1C) : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         alignment: Alignment.center,
@@ -207,9 +247,10 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () => setState(() => _activeTab = 'BonediBari'),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
-                          color: _activeTab == 'BonediBari' ? const Color(0xFFAF101A) : Colors.transparent,
+                          color: _activeTab == 'BonediBari' ? const Color(0xFFB71C1C) : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         alignment: Alignment.center,
@@ -229,7 +270,36 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
             ),
           ),
 
-          const SizedBox(height: 10),
+          // Count summary indicator
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _searchQuery.isNotEmpty
+                      ? 'Found ${filteredList.length} matching pujas'
+                      : 'Showing ${filteredList.length} pujas',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                if (_allPandals.isNotEmpty)
+                  Text(
+                    'Total Synced: ${_allPandals.length}',
+                    style: GoogleFonts.manrope(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFFB71C1C),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 4),
 
           // 3. Main Directory List Content
           Expanded(
@@ -237,26 +307,68 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                 ? const PandalListSkeletonLoader(itemCount: 6)
                 : RefreshIndicator(
                     onRefresh: _fetchPandals,
-                    color: const Color(0xFFAF101A),
+                    color: const Color(0xFFB71C1C),
                     child: filteredList.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: [
-                              SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                              SizedBox(height: MediaQuery.of(context).size.height * 0.15),
                               Center(
-                                child: Column(
-                                  children: [
-                                    const Icon(Icons.search_off_rounded, size: 64, color: Colors.grey),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No pujas matched your search.',
-                                      style: GoogleFonts.manrope(
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 15,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(20),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFB71C1C).withValues(alpha: 0.08),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.search_off_rounded, size: 56, color: Color(0xFFB71C1C)),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No pandals found',
+                                        style: GoogleFonts.manrope(
+                                          color: const Color(0xFFB71C1C),
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _searchQuery.isNotEmpty
+                                            ? 'No results matching "$_searchQuery" in ${_activeTab == "BonediBari" ? "Bonedi Bari" : "Community Pujas"}'
+                                            : 'No pandals found in this section.',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.manrope(
+                                          color: Colors.grey[600],
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      if (_searchQuery.isNotEmpty) ...[
+                                        const SizedBox(height: 20),
+                                        ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFFB71C1C),
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                          ),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            _onSearchChanged('');
+                                          },
+                                          icon: const Icon(Icons.clear, size: 16),
+                                          label: Text(
+                                            'Clear Search',
+                                            style: GoogleFonts.manrope(fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ]
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
@@ -300,10 +412,10 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey[100]!),
+          border: Border.all(color: const Color(0xFFEADCD5)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.015),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -312,7 +424,7 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // 80x80 Pandal Thumbnail
+            // Pandal Thumbnail
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.network(
@@ -327,7 +439,7 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                     height: 80,
                     color: AppColors.primaryContainer,
                     child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                      child: AppSpinner(size: 18, strokeWidth: 2.0),
                     ),
                   );
                 },
@@ -360,7 +472,7 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    pandal.theme ?? 'Traditional Celebration',
+                    pandal.theme ?? 'Traditional Durga Puja',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.manrope(
@@ -401,7 +513,7 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: pandal.crowdLevel.color.withOpacity(0.08),
+                          color: pandal.crowdLevel.color.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
