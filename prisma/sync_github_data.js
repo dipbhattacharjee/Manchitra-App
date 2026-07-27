@@ -17,8 +17,18 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const GITHUB_JSON_URL = process.env.GITHUB_JSON_URL || 'https://raw.githubusercontent.com/dbaidya811/map_server/refs/heads/main/Must-visit.json';
+const GITHUB_REPO_CONTENTS_API = 'https://api.github.com/repos/dbaidya811/map_server/contents';
 const GITHUB_BASE_URL = process.env.GITHUB_BASE_URL || 'https://raw.githubusercontent.com/dbaidya811/map_server/refs/heads/main/';
+const KNOWN_CATEGORY_FILES = [
+  'Alipore_Port_area.json',
+  'Bidhannagar_s.json',
+  'Central_Kolkata.json',
+  'Must-visit.json',
+  'North_Kolkata.json',
+  'Northern_Suburb-Kolkata.json',
+  'South_Kolkata.json',
+  'Southern_Suburb_Kolkata.json'
+];
 
 const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
@@ -32,6 +42,9 @@ const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
  * Upload an image URL to Cloudinary
  */
 async function uploadToCloudinary(imageUrl, folder = 'map_server_pandals') {
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    return null;
+  }
   try {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const paramsToSign = `folder=${folder}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
@@ -65,9 +78,9 @@ async function uploadToCloudinary(imageUrl, folder = 'map_server_pandals') {
 }
 
 /**
- * Derive area from pandal name / description
+ * Derive area from pandal name, description, and source filename
  */
-function deriveArea(name, description) {
+function deriveArea(name, description, filename = '') {
   if (name.includes('Dum Dum')) return 'Dum Dum Park';
   if (name.includes('Hatibagan')) return 'Hatibagan';
   if (name.includes('Kumartuli')) return 'Kumartuli';
@@ -95,60 +108,137 @@ function deriveArea(name, description) {
   if (name.includes('Barisha')) return 'Barisha';
   if (name.includes('Ajeya')) return 'Haridevpur';
   if (name.includes('Naktala')) return 'Naktala';
-  if (name.includes('Labony') || name.includes('EC Block')) return 'Salt Lake';
+  if (name.includes('Labony') || name.includes('EC Block') || name.includes('FD Block') || name.includes('BJ Block')) return 'Salt Lake';
+
+  // Fallback to filename category
+  if (filename.includes('Alipore')) return 'Alipore';
+  if (filename.includes('Bidhannagar')) return 'Salt Lake';
+  if (filename.includes('Central')) return 'Central Kolkata';
+  if (filename.includes('North_Kolkata')) return 'North Kolkata';
+  if (filename.includes('Northern_Suburb')) return 'Northern Suburbs';
+  if (filename.includes('South_Kolkata')) return 'South Kolkata';
+  if (filename.includes('Southern_Suburb')) return 'Southern Suburbs';
+
   return 'Kolkata';
 }
 
-async function run() {
-  console.log('--- STARTING GITHUB TO CLOUDINARY & DATABASE SYNC ---');
-  console.log('Fetching JSON from GitHub repo...');
-  const response = await fetch(GITHUB_JSON_URL);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch GitHub JSON: ${response.statusText}`);
+/**
+ * Fetch all JSON files from the GitHub repository contents
+ */
+async function getCategoryFiles() {
+  try {
+    const res = await fetch(GITHUB_REPO_CONTENTS_API, {
+      headers: { 'User-Agent': 'FlutterAppSyncScript' }
+    });
+    if (res.ok) {
+      const contents = await res.json();
+      const jsonFiles = contents
+        .filter(item => item.type === 'file' && item.name.endsWith('.json') && item.name !== 'package.json' && item.name !== 'package-lock.json')
+        .map(item => item.name);
+      if (jsonFiles.length > 0) {
+        console.log(`Discovered ${jsonFiles.length} JSON files via GitHub API:`, jsonFiles);
+        return jsonFiles;
+      }
+    }
+  } catch (e) {
+    console.warn('GitHub Repo Contents API failed, using known category files:', e.message);
   }
-  const githubData = await response.json();
-  console.log(`Fetched ${githubData.length} locations from GitHub.`);
+  return KNOWN_CATEGORY_FILES;
+}
+
+async function run() {
+  console.log('--- STARTING GITHUB CATEGORIES TO CLOUDINARY & DATABASE SYNC ---');
+  const files = await getCategoryFiles();
+
+  const pandalsMap = new Map(); // Key: normalized pandal name
+
+  for (const file of files) {
+    const url = `${GITHUB_BASE_URL}${file}`;
+    console.log(`Fetching category file: ${file} (${url})...`);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error(`Failed to fetch ${file}: status ${response.status}`);
+        continue;
+      }
+      const items = await response.json();
+      console.log(` -> ${items.length} items in ${file}`);
+
+      for (const item of items) {
+        if (!item.name) continue;
+        const normKey = item.name.trim().toLowerCase();
+        const existing = pandalsMap.get(normKey);
+
+        if (!existing) {
+          pandalsMap.set(normKey, {
+            ...item,
+            sourceFile: file,
+            isMustVisit: file === 'Must-visit.json'
+          });
+        } else {
+          // Merge images & take better description/must-visit status
+          if (file === 'Must-visit.json') {
+            existing.isMustVisit = true;
+          }
+          if (item.description && item.description.length > (existing.description || '').length) {
+            existing.description = item.description;
+          }
+          if (item.local_images && item.local_images.length > 0) {
+            const combined = new Set([...(existing.local_images || []), ...item.local_images]);
+            existing.local_images = Array.from(combined);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`Error processing file ${file}:`, e);
+    }
+  }
+
+  const allPandals = Array.from(pandalsMap.values());
+  console.log(`\n==============================================`);
+  console.log(`TOTAL UNIQUE PANDALS COLLECTED: ${allPandals.length}`);
+  console.log(`==============================================\n`);
 
   let count = 0;
-  for (const item of githubData) {
+  for (const item of allPandals) {
     count++;
-    console.log(`\n[${count}/${githubData.length}] Processing: ${item.name}`);
+    console.log(`[${count}/${allPandals.length}] Processing: ${item.name} (${item.sourceFile})`);
 
-    // Upload local images to Cloudinary
+    // Upload local images to Cloudinary if configured
     const cloudinaryUrls = [];
     if (item.local_images && item.local_images.length > 0) {
       for (const imgPath of item.local_images) {
         const fullGithubImgUrl = GITHUB_BASE_URL + imgPath;
-        console.log(`Uploading image ${fullGithubImgUrl} to Cloudinary...`);
         const cUrl = await uploadToCloudinary(fullGithubImgUrl);
         if (cUrl) {
           cloudinaryUrls.push(cUrl);
+        } else {
+          // Fallback directly to GitHub Raw URL
+          cloudinaryUrls.push(fullGithubImgUrl);
         }
       }
     }
 
-    const area = deriveArea(item.name, item.description || '');
+    const area = deriveArea(item.name, item.description || '', item.sourceFile);
 
     // Check if pandal exists by name
-    const existing = await prisma.pandal.findFirst({
+    const existingRecord = await prisma.pandal.findFirst({
       where: { name: item.name },
     });
 
     let pandalRecord;
-    if (existing) {
-      console.log(`Updating existing pandal: ${existing.id} (${item.name})`);
+    if (existingRecord) {
       pandalRecord = await prisma.pandal.update({
-        where: { id: existing.id },
+        where: { id: existingRecord.id },
         data: {
           area: area,
-          description: item.description || existing.description,
-          latitude: item.latitude || existing.latitude,
-          longitude: item.longitude || existing.longitude,
-          isFeatured2026: true,
+          description: item.description || existingRecord.description,
+          latitude: item.latitude || existingRecord.latitude,
+          longitude: item.longitude || existingRecord.longitude,
+          isFeatured2026: item.isMustVisit || existingRecord.isFeatured2026,
         },
       });
     } else {
-      console.log(`Creating new pandal: ${item.name}`);
       pandalRecord = await prisma.pandal.create({
         data: {
           name: item.name,
@@ -157,7 +247,7 @@ async function run() {
           description: item.description || '',
           latitude: item.latitude,
           longitude: item.longitude,
-          isFeatured2026: true,
+          isFeatured2026: item.isMustVisit || false,
           category: 'THEME_BASED',
           visitStartTime: '09:00',
           visitEndTime: '23:59',
@@ -166,11 +256,10 @@ async function run() {
       });
     }
 
-    // Now insert photos if we got Cloudinary URLs
+    // Save/link photos
     if (cloudinaryUrls.length > 0) {
       for (let i = 0; i < cloudinaryUrls.length; i++) {
         const photoUrl = cloudinaryUrls[i];
-        // Check if photo exists
         const existingPhoto = await prisma.pandalPhoto.findFirst({
           where: { pandalId: pandalRecord.id, url: photoUrl },
         });
@@ -183,7 +272,6 @@ async function run() {
               isCover: i === 0,
             },
           });
-          console.log(`Saved photo in DB for ${item.name}: ${photoUrl}`);
         }
       }
     }
