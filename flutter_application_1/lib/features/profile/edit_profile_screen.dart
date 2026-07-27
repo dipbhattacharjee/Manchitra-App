@@ -470,6 +470,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    filled: false,
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 4),
                   ),

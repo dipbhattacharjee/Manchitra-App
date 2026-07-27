@@ -5,12 +5,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'core/providers/pandal_provider.dart';
+import 'core/providers/navigation_controller.dart';
 import 'core/theme/theme.dart';
 import 'core/config/secrets.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/map/map_screen.dart';
 import 'features/assistant/ai_assistant_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/weather/weather_screen.dart';
@@ -29,6 +31,7 @@ import 'features/profile/about_manchitra_screen.dart';
 ///   /onboarding    → OnboardingScreen
 ///   /login         → LoginScreen
 ///   /home          → HomeScreen (with bottom nav)
+///   /map           → MapScreen (interactive map & turn-by-turn)
 ///   /ai            → AIAssistantScreen
 ///   /notifications → NotificationsScreen
 ///   /weather       → WeatherScreen
@@ -77,6 +80,7 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PandalProvider()),
+        ChangeNotifierProvider(create: (_) => NavigationController()),
       ],
       child: const ManchitraApp(),
     ),
@@ -102,6 +106,7 @@ class ManchitraApp extends StatelessWidget {
         '/onboarding': (context) => const OnboardingScreen(),
         '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),
+        '/map': (context) => const MapScreen(),
         '/ai': (context) => const AIAssistantScreen(),
         '/notifications': (context) => const NotificationsScreen(),
         '/weather': (context) => const WeatherScreen(),

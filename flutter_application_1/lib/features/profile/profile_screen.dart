@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
 import '../pandals/pandal_detail_screen.dart';
 import 'profile_data.dart';
+import '../../shared/widgets/states/skeleton_loaders.dart';
 
 /// ============================================================
 /// MANCHITRA — Profile Screen
@@ -18,12 +19,15 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isLoading = false;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: _isLoading
+            ? const ProfileSkeletonLoader()
+            : SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 120),
           child: Column(
             children: [

@@ -3,6 +3,7 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
+export 'puja_day_model.dart';
 
 // ─── ENUMS ────────────────────────────────────────────────────
 
@@ -73,6 +74,17 @@ enum AppExperienceTheme {
 
 // ─── MODELS ───────────────────────────────────────────────────
 
+enum PlaceType {
+  pandal('Pandal', Icons.temple_hindu, Color(0xFF8B1A1A)),
+  restaurant('Restaurant', Icons.restaurant_rounded, Color(0xFFC8961A)),
+  other('Other Place', Icons.place_rounded, Color(0xFF2A8A4A));
+
+  const PlaceType(this.label, this.icon, this.color);
+  final String label;
+  final IconData icon;
+  final Color color;
+}
+
 class Pandal {
   const Pandal({
     required this.id,
@@ -94,6 +106,7 @@ class Pandal {
     this.rating,
     this.reviewCount = 0,
     this.distanceKm,
+    this.placeType = PlaceType.pandal,
   });
 
   final String id;
@@ -115,6 +128,7 @@ class Pandal {
   final double? rating;
   final int reviewCount;
   final double? distanceKm;
+  final PlaceType placeType;
 
   String get distanceText {
     if (distanceKm == null) return '';
@@ -442,9 +456,8 @@ class SampleData {
       distanceKm: 3.1,
       rating: 4.5,
       reviewCount: 980,
-      coverPhotoUrl: '',
-      photoUrls: const [''],
-
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039272/inauguration-ceremony-of-the-57th-year-of-youth-association-of-mohammad-ali-park-durga-puja-6_culxki.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784039272/inauguration-ceremony-of-the-57th-year-of-youth-association-of-mohammad-ali-park-durga-puja-6_culxki.jpg'],
     ),
     Pandal(
       id: 'p009',
@@ -463,9 +476,8 @@ class SampleData {
       distanceKm: 3.1,
       rating: 4.5,
       reviewCount: 980,
-      coverPhotoUrl: '',
-      photoUrls: const [''],
-
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784785653/map_server_pandals/gz0mxgphysfyg0ykqiyb.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784785653/map_server_pandals/gz0mxgphysfyg0ykqiyb.jpg'],
     ),
     Pandal(
       id: 'p010',
@@ -484,9 +496,8 @@ class SampleData {
       distanceKm: 3.1,
       rating: 4.5,
       reviewCount: 980,
-      coverPhotoUrl: '',
-      photoUrls: const [''],
-
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039236/ekdalia-evergreen_fbvbsr.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784039236/ekdalia-evergreen_fbvbsr.jpg'],
     ),
     Pandal(
       id: 'p011',
@@ -505,9 +516,8 @@ class SampleData {
       distanceKm: 3.1,
       rating: 4.5,
       reviewCount: 980,
-      coverPhotoUrl: '',
-      photoUrls: const [''],
-
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038970/114045851_baf6ub.png',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784038970/114045851_baf6ub.png'],
     ),
     Pandal(
       id: 'p012',
@@ -526,9 +536,8 @@ class SampleData {
       distanceKm: 3.1,
       rating: 4.5,
       reviewCount: 980,
-      coverPhotoUrl: '',
-      photoUrls: const [''],
-
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038553/579c3d50-c14f-49f4-accd-1a6d29de66e1_u8k0dq.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784038553/579c3d50-c14f-49f4-accd-1a6d29de66e1_u8k0dq.jpg'],
     ),
     Pandal(
       id: 'p013',
@@ -544,6 +553,8 @@ class SampleData {
       visitStartTime: '09:00',
       visitEndTime: '23:59',
       crowdLevel: CrowdLevel.medium,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784785655/map_server_pandals/ygp8zrfayaoo3xuj1xp5.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784785655/map_server_pandals/ygp8zrfayaoo3xuj1xp5.jpg'],
     ),
     Pandal(
       id: 'p014',
@@ -559,6 +570,8 @@ class SampleData {
       visitStartTime: '10:00',
       visitEndTime: '23:00',
       crowdLevel: CrowdLevel.medium,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039236/ekdalia-evergreen_fbvbsr.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784039236/ekdalia-evergreen_fbvbsr.jpg'],
     ),
     Pandal(
       id: 'p015',
@@ -574,6 +587,8 @@ class SampleData {
       visitStartTime: '08:00',
       visitEndTime: '23:00',
       crowdLevel: CrowdLevel.high,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg'],
     ),
     Pandal(
       id: 'p016',
@@ -589,6 +604,8 @@ class SampleData {
       visitStartTime: '10:00',
       visitEndTime: '22:00',
       crowdLevel: CrowdLevel.medium,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg'],
     ),
     Pandal(
       id: 'p017',
@@ -604,6 +621,8 @@ class SampleData {
       visitStartTime: '08:00',
       visitEndTime: '22:00',
       crowdLevel: CrowdLevel.low,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg'],
     ),
     Pandal(
       id: 'p018',
@@ -639,6 +658,8 @@ class SampleData {
       visitStartTime: '10:00',
       visitEndTime: '21:00',
       crowdLevel: CrowdLevel.low,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg'],
     ),
     Pandal(
       id: 'p020',
@@ -654,6 +675,8 @@ class SampleData {
       visitStartTime: '09:00',
       visitEndTime: '21:00',
       crowdLevel: CrowdLevel.low,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg'],
     ),
     Pandal(
       id: 'p021',
@@ -669,6 +692,8 @@ class SampleData {
       visitStartTime: '08:00',
       visitEndTime: '22:00',
       crowdLevel: CrowdLevel.low,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784040526/pexels-kolkatarchobiwala-15873620_nswflq.jpg'],
     ),
     Pandal(
       id: 'p022',
@@ -684,6 +709,8 @@ class SampleData {
       visitStartTime: '09:00',
       visitEndTime: '23:59',
       crowdLevel: CrowdLevel.veryHigh,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039272/inauguration-ceremony-of-the-57th-year-of-youth-association-of-mohammad-ali-park-durga-puja-6_culxki.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784039272/inauguration-ceremony-of-the-57th-year-of-youth-association-of-mohammad-ali-park-durga-puja-6_culxki.jpg'],
     ),
     Pandal(
       id: 'p023',
@@ -699,6 +726,8 @@ class SampleData {
       visitStartTime: '09:00',
       visitEndTime: '23:59',
       crowdLevel: CrowdLevel.high,
+      coverPhotoUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784785652/map_server_pandals/rwcwhpio0ughtxegdqmo.jpg',
+      photoUrls: const ['https://res.cloudinary.com/mizoda0v/image/upload/v1784785652/map_server_pandals/rwcwhpio0ughtxegdqmo.jpg'],
     ),
   ];
 
@@ -765,6 +794,74 @@ class SampleData {
       rating: 4.1,
       distanceKm: 3.0,
       pricePerNight: 3800,
+    ),
+  ];
+
+  static const List<Pandal> sampleNonPandalPlaces = [
+    Pandal(
+      id: 'r001',
+      name: 'Arsalan Restaurant (Park Circus)',
+      area: 'Park Circus',
+      latitude: 22.5446,
+      longitude: 88.3659,
+      committeeName: 'Famous Mughlai & Biryani',
+      theme: 'Kolkata Biryani & Mughlai Specialties',
+      description: 'Iconic spot for authentic Kolkata Mutton Biryani, Kebab, and Firni during late-night puja hopping.',
+      placeType: PlaceType.restaurant,
+      category: PandalCategory.community,
+      coverPhotoUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=600',
+    ),
+    Pandal(
+      id: 'r002',
+      name: 'Mitra Cafe (Shambazar)',
+      area: 'North Kolkata',
+      latitude: 22.6001,
+      longitude: 88.3695,
+      committeeName: 'Heritage Cabin Snack House',
+      theme: 'Fish Fry & Brain Chop',
+      description: 'Legendary 110+ year old Kolkata heritage cabin famous for Diamond Fish Fry and Brain Chop.',
+      placeType: PlaceType.restaurant,
+      category: PandalCategory.famousHeritage,
+      coverPhotoUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600',
+    ),
+    Pandal(
+      id: 'r003',
+      name: 'Peter Cat (Park Street)',
+      area: 'Central Kolkata',
+      latitude: 22.5532,
+      longitude: 88.3524,
+      committeeName: 'Classic Park Street Dining',
+      theme: 'Cheelo Kebab & Sizzlers',
+      description: 'Celebrated restaurant on Park Street famous worldwide for its Cheelo Kebab and classic ambiance.',
+      placeType: PlaceType.restaurant,
+      category: PandalCategory.famousHeritage,
+      coverPhotoUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600',
+    ),
+    Pandal(
+      id: 'o001',
+      name: 'Prinsep Ghat Riverfront Photo Spot',
+      area: 'Strand Road',
+      latitude: 22.5562,
+      longitude: 88.3361,
+      committeeName: 'Kolkata Port Trust',
+      theme: 'Ganga Riverfront & Vidyasagar Setu View',
+      description: 'Scenic heritage ghat along Hooghly river ideal for night photography and boat rides.',
+      placeType: PlaceType.other,
+      category: PandalCategory.ecoFriendly,
+      coverPhotoUrl: 'https://images.unsplash.com/photo-1558431382-27e303142255?auto=format&fit=crop&w=600',
+    ),
+    Pandal(
+      id: 'o002',
+      name: 'Rabindra Sadan Medical First-Aid Post',
+      area: 'Exide Crossing',
+      latitude: 22.5408,
+      longitude: 88.3475,
+      committeeName: 'Kolkata Police & St John Ambulance',
+      theme: 'Puja Safety & Medical Rest Point',
+      description: '24x7 Emergency first-aid station, drinking water distribution, and crowd helpdesk.',
+      placeType: PlaceType.other,
+      category: PandalCategory.community,
+      coverPhotoUrl: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=600',
     ),
   ];
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 
@@ -246,19 +247,48 @@ class PandalCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Icon/thumbnail placeholder
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryContainer,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.temple_hindu_rounded, 
-                        color: AppColors.primary, 
-                        size: 28,
-                      ),
+                    // Real Pandal Image Thumbnail
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: (pandal.coverPhotoUrl != null &&
+                              (pandal.coverPhotoUrl as String).trim().isNotEmpty)
+                          ? Image.network(
+                              pandal.coverPhotoUrl as String,
+                              width: 68,
+                              height: 68,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  width: 68,
+                                  height: 68,
+                                  color: AppColors.primaryContainer,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                width: 68,
+                                height: 68,
+                                color: AppColors.primaryContainer,
+                                child: const Icon(
+                                  Icons.temple_hindu_rounded, 
+                                  color: AppColors.primary, 
+                                  size: 28,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: 68,
+                              height: 68,
+                              color: AppColors.primaryContainer,
+                              child: const Icon(
+                                Icons.temple_hindu_rounded, 
+                                color: AppColors.primary, 
+                                size: 28,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 14),
                     // Information
@@ -288,11 +318,13 @@ class PandalCard extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                '· ${pandal.theme ?? "Heritage Art"}',
-                                style: AppTextStyles.bodySmall,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              Flexible(
+                                child: Text(
+                                  '· ${pandal.theme ?? "Heritage Art"}',
+                                  style: AppTextStyles.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
@@ -426,60 +458,78 @@ class FeaturedPandalCard extends StatelessWidget {
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   // Trending tag
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.black.withOpacity(0.35),
                       borderRadius: BorderRadius.circular(100),
+                      border: Border.all(color: Colors.white24, width: 0.5),
                     ),
                     child: Text(
                       'Trending #1',
                       style: AppTextStyles.labelSmall.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
+                        fontSize: 10,
                       ),
                     ),
                   ),
                   const Spacer(),
-                  // Pandal Name
+                  // Pandal Name (Shortened and limited to max 2 lines so full image is visible)
                   Text(
-                    pandal.name as String? ?? 'Suruchi Sangha',
-                    style: AppTextStyles.headlineSmall.copyWith(
+                    (pandal.name as String? ?? 'Suruchi Sangha')
+                        .replaceAll(' Durgotsab Committee', '')
+                        .replaceAll(' Durga Puja Committee', '')
+                        .replaceAll(' Durgotsav Committee', '')
+                        .replaceAll(' Committee', '')
+                        .trim(),
+                    style: GoogleFonts.manrope(
                       color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      height: 1.25,
+                      shadows: [
+                        const Shadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 1)),
+                      ],
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   // Location
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 14, color: Colors.white70),
-                      const SizedBox(width: 4),
-                      Text(
-                        pandal.area as String? ?? 'New Alipore',
-                        style: AppTextStyles.bodyMedium.copyWith(color: Colors.white70),
+                      const Icon(Icons.location_on, size: 12, color: Colors.white70),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          pandal.area as String? ?? 'New Alipore',
+                          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white70, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   // Bottom stats row
                   Row(
                     children: [
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.black.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            'Theme: ${pandal.theme ?? "Eco-balance"}',
+                            'Theme: ${pandal.theme ?? "Heritage Art"}',
                             style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -487,13 +537,13 @@ class FeaturedPandalCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.black.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
                             'Wait: ~15 mins',

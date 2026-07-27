@@ -263,6 +263,7 @@ class OutlinedGoldButton extends StatelessWidget {
     this.icon,
     this.height = AppButtonStyles.heightMedium,
     this.width = double.infinity,
+    this.padding,
     this.borderRadius = AppButtonStyles.radiusMedium,
   });
 
@@ -271,6 +272,7 @@ class OutlinedGoldButton extends StatelessWidget {
   final Widget? icon;
   final double height;
   final double? width;
+  final EdgeInsetsGeometry? padding;
   final double borderRadius;
 
   @override
@@ -280,22 +282,37 @@ class OutlinedGoldButton extends StatelessWidget {
       child: Container(
         height: height,
         width: width,
+        padding: padding ?? const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
+          color: AppColors.surface,
           border: Border.all(color: AppColors.secondary, width: 1.5),
           borderRadius: BorderRadius.circular(borderRadius),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Center(
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
                 icon!,
                 const SizedBox(width: 8),
               ],
-              Text(
-                text,
-                style: AppTextStyles.labelLarge.copyWith(
-                  color: AppColors.secondary,
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.secondary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],

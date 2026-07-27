@@ -32,6 +32,10 @@ dependencies:
   flutter_map_marker_cluster: ^8.2.2
   permission_handler: ^11.3.1
   provider: ^6.1.2
+  flutter_compass: ^0.8.0
+  connectivity_plus: ^6.1.0
+  speech_to_text: ^7.0.0 # TODO: KGP warning as of Flutter 3.29+ — check for update: https://pub.dev/packages/speech_to_text/changelog
+  add_2_calendar: ^3.0.1
 
 dev_dependencies:
   flutter_test:
@@ -41,6 +45,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/login_bg.png
+    - assets/data/durga_puja_2026.json
 
   # Note: Fonts are loaded via google_fonts package at runtime.
   # If you want to bundle fonts locally (recommended for production),

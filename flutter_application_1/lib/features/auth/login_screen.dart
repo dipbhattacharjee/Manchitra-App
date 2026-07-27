@@ -1,14 +1,14 @@
 import 'dart:ui' as ui;
-import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../profile/profile_data.dart';
 
 /// ============================================================
-/// MANCHITRA — Glassmorphic Login Screen (Unified Input)
+/// MANCHITRA — Redesigned Login Screen (Single Input Box & Borderless)
 /// ============================================================
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,21 +17,69 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _inputController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
 
   bool _isLoading = false;
-  String _loadingLabel = 'Please wait…';
+  String _loadingLabel = 'Please wait...';
   bool _otpSent = false;
   String _verificationId = '';
+
+  // Email authentication states (Single box flow)
+  bool _showPasswordField = false;
+  String _enteredEmail = '';
+  bool _obscurePassword = true;
+  bool _forgotPasswordMode = false;
+
+  // Card entrance animation (fade + rise on load)
+  late final AnimationController _entranceController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
+
+  // Flickering diya-flame accent beside the title
+  late final AnimationController _diyaController;
+
+  // Slow ambient zoom on the background tapestry for a living, festive feel
+  late final AnimationController _bgController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _fadeAnim = CurvedAnimation(parent: _entranceController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _entranceController, curve: Curves.easeOutCubic));
+    _entranceController.forward();
+
+    _diyaController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+
+    _bgController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
     _inputController.dispose();
+    _passwordController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
+    _entranceController.dispose();
+    _diyaController.dispose();
+    _bgController.dispose();
     super.dispose();
   }
 
@@ -42,7 +90,11 @@ class _LoginScreenState extends State<LoginScreen> {
       _loadingLabel = 'Signing in with Google…';
     });
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: kIsWeb ? '395160201255-gendtkomiootin1elsqffmhjck63rdkn.apps.googleusercontent.com' : null,
+        serverClientId: '395160201255-gendtkomiootin1elsqffmhjck63rdkn.apps.googleusercontent.com',
+      );
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         setState(() => _isLoading = false);
         return; // User cancelled
@@ -171,27 +223,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = true;
-      _loadingLabel = 'Verifying code…';
+      _loadingLabel = 'Checking OTP…';
     });
+
     try {
-      final credential = PhoneAuthProvider.credential(
+      final AuthCredential credential = PhoneAuthProvider.credential(
         verificationId: _verificationId,
         smsCode: code,
       );
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = userCredential.user;
+
+      if (user != null) {
+        ProfileData.email = user.email ?? '';
+        ProfileData.name = user.displayName ?? 'Pandal Hopper';
+      }
+
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
-      debugPrint('OTP code verification failed: $e');
+      debugPrint('OTP verify failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('OTP mismatch: $e. Logging in via preview bypass.'),
+            content: Text('OTP Verification: $e. Proceeding via preview bypass.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // Preview fallback bypass
+        // Fallback profile details
+        ProfileData.name = 'Pandal Hopper';
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } finally {
@@ -199,13 +260,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 4. Unified Submit handler
+  // 4. Unified Email/Phone Input submit
   Future<void> _handleUnifiedSubmit() async {
     final text = _inputController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter your Email or Mobile number'),
+          content: Text('Please enter your Email or Mobile Number'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -213,285 +274,337 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     final isEmail = text.contains('@');
-    final cleanPhone = text.replaceAll(RegExp(r'[^\d]'), '');
-    final isPhone = !isEmail && cleanPhone.length >= 10;
-
     if (isEmail) {
+      // Transition to single password input field
       setState(() {
-        _isLoading = true;
-        _loadingLabel = 'Logging in with Email…';
+        _enteredEmail = text;
+        _passwordController.clear();
+        _showPasswordField = true;
       });
-      try {
-        // Save Gmail / Email
-        ProfileData.email = text;
-        ProfileData.name = text.split('@')[0];
-
-        // Direct bypass log-in
-        await Future.delayed(const Duration(milliseconds: 800));
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/home');
-        }
-      } catch (e) {
-        debugPrint('Email bypass error: $e');
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/home');
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    } else if (isPhone) {
-      _phoneController.text = cleanPhone.substring(cleanPhone.length - 10);
-      await _sendOTP();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid Email address or 10-digit Mobile number'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      // Treat as phone number
+      _phoneController.text = text;
+      _sendOTP();
     }
   }
 
-  void _guestBrowse() {
-    Navigator.of(context).pushReplacementNamed('/home');
+  // 5. Firebase Email/Password Sign-In Flow
+  Future<void> _handleEmailAuth() async {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your Password'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _loadingLabel = 'Logging in with Email…';
+    });
+
+    try {
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        EmailAuthProvider.credential(email: _enteredEmail, password: password),
+      );
+
+      final user = userCredential.user;
+      if (user != null) {
+        ProfileData.email = user.email ?? _enteredEmail;
+        ProfileData.name = user.displayName ?? _enteredEmail.split('@')[0];
+      }
+
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      debugPrint('Email auth failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Email Auth: $e. Proceeding via preview bypass.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        // Fallback profile details
+        ProfileData.email = _enteredEmail;
+        ProfileData.name = _enteredEmail.split('@')[0];
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardMaxWidth = math.min(400.0, screenWidth - 48);
+    final cardMaxWidth = math.min(380.0, screenWidth - 48);
 
     return Scaffold(
       body: Stack(
         children: [
-          // Background Image (Dakshineswar Temple / Kolkata Sunset)
+          // Background Image (Image 3 - Traditional Red Motif Tapestry)
+          // Slow ambient zoom for a living, festive feel.
           Positioned.fill(
-            child: Image.network(
-              'https://images.unsplash.com/photo-1558431382-27e303142255?w=800',
-              fit: BoxFit.cover,
+            child: AnimatedBuilder(
+              animation: _bgController,
+              builder: (context, child) {
+                final scale = 1.0 + (_bgController.value * 0.06);
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Image.asset(
+                'assets/images/login_bg.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
 
-          // Dark transparent overlay for contrast
+          // Optional subtle overlay to ensure readability if background is too light
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withOpacity(0.15),
             ),
           ),
 
-          // Main Glassmorphic Container
+          // Main Mockup Content Container (Outer box completely dissolved/removed)
           Positioned.fill(
             child: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    child: Container(
-                      width: cardMaxWidth,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.35),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // 1. App Title
-                                Center(
-                                  child: Text(
-                                    'Manchitra',
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: SlideTransition(
+                        position: _slideAnim,
+                        child: SizedBox(
+                          width: cardMaxWidth,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Title text inside card, with a flickering diya-flame accent
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AnimatedBuilder(
+                                    animation: _diyaController,
+                                    builder: (context, child) {
+                                      final flicker = 0.75 + (_diyaController.value * 0.25);
+                                      return Opacity(
+                                        opacity: flicker,
+                                        child: Transform.scale(
+                                          scale: 0.9 + (_diyaController.value * 0.15),
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                    child: const Icon(
+                                      Icons.local_fire_department_rounded,
+                                      color: Color(0xFFFFC64B),
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _forgotPasswordMode ? 'Reset Password' : 'Login Here',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 40,
-                                      fontWeight: FontWeight.w900,
-                                      color: const ui.Color(0xFFC8363C),
-                                      letterSpacing: -0.5,
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 0.5,
                                     ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Center(
-                                  child: Text(
-                                    'PANDAL HOPPING, SIMPLIFIED',
-                                    style: GoogleFonts.manrope(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white.withOpacity(0.6),
-                                      letterSpacing: 1.4,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-
-                                // 2. Emblem
-                                Center(
-                                  child: SizedBox(
-                                    width: 140,
-                                    height: 140,
-                                    child: ClipRect(
-                                      child: CustomPaint(
-                                        painter: _EmblemPainter(),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-
-                                // 3. Unified Inputs / Buttons Area
-                                if (_otpSent) ...[
-                                  // OTP Verification code input
-                                  _buildGlassmorphicInput(
-                                    controller: _otpController,
-                                    hint: 'Enter 6-Digit OTP',
-                                    icon: Icons.lock_outline_rounded,
-                                    keyboardType: TextInputType.number,
-                                    maxLength: 6,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  _buildButton(
-                                    text: 'Verify Code & Sign In',
-                                    icon: Icons.verified_user_rounded,
-                                    color: const Color(0xFFB32A2F),
-                                    textColor: Colors.white,
-                                    onTap: _verifyOTP,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  GestureDetector(
-                                    onTap: _isLoading ? null : () => setState(() => _otpSent = false),
-                                    child: Center(
-                                      child: Text(
-                                        'Change email or phone',
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 12,
-                                          color: Colors.white70,
-                                          decoration: TextDecoration.underline,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ] else ...[
-                                  // Email / Phone unified field + Arrow Button next to it
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _buildGlassmorphicInput(
-                                          controller: _inputController,
-                                          hint: 'Email or Mobile Number',
-                                          icon: Icons.alternate_email_rounded,
-                                          keyboardType: TextInputType.emailAddress,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: _isLoading ? null : _handleUnifiedSubmit,
-                                        child: Container(
-                                          width: 50,
-                                          height: 50,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFFC003),
-                                            borderRadius: BorderRadius.circular(20),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: const Color(0xFFFFC003).withOpacity(0.3),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 3),
-                                              ),
-                                            ],
-                                          ),
-                                          child: const Center(
-                                            child: Icon(
-                                              Icons.arrow_forward_rounded,
-                                              color: Colors.black87,
-                                              size: 22,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 32),
 
-                                const SizedBox(height: 20),
-
-                                // Divider
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        height: 1,
-                                        color: Colors.white.withOpacity(0.2),
-                                      ),
+                              // Google sign-in button (hidden in forgot password & password mode to focus user attention)
+                              if (!_forgotPasswordMode && !_showPasswordField) ...[
+                                GestureDetector(
+                                  onTap: _isLoading ? null : _handleGoogleSignIn,
+                                  child: Container(
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF0F5), // Light pinkish-white background
+                                      borderRadius: BorderRadius.circular(24),
                                     ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text(
-                                        'OR CONTINUE WITH',
-                                        style: GoogleFonts.manrope(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white.withOpacity(0.55),
-                                          letterSpacing: 1,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        // Multi-colored Google logo — drawn locally so it always renders correctly
+                                        const _GoogleLogo(size: 20),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Sign in with Google',
+                                          style: GoogleFonts.manrope(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
-                                    Expanded(
-                                      child: Container(
-                                        height: 1,
-                                        color: Colors.white.withOpacity(0.2),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-
-                                // Continue with Google Button
-                                _buildButton(
-                                  text: 'Continue with Google',
-                                  imageIcon: 'G',
-                                  color: Colors.white,
-                                  textColor: Colors.black87,
-                                  onTap: _handleGoogleSignIn,
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
+                                // Divider "or"
+                                Center(
+                                  child: Text(
+                                    'or',
+                                    style: GoogleFonts.manrope(
+                                      color: Colors.white70,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
 
-                                // Skip explore link
+                              // Inputs and Submit section (Single box)
+                              if (_otpSent) ...[
+                                // OTP Verification code input
+                                _buildMockupInput(
+                                  controller: _otpController,
+                                  hint: 'Enter 6-Digit OTP',
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 6,
+                                ),
+                                const SizedBox(height: 20),
+                                _buildMockupButton(
+                                  text: 'Verify Code & Sign In',
+                                  onTap: _verifyOTP,
+                                ),
+                                const SizedBox(height: 16),
                                 GestureDetector(
-                                  onTap: _isLoading ? null : _guestBrowse,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          'Skip and explore as Guest',
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFFFFC003),
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                  onTap: _isLoading ? null : () => setState(() => _otpSent = false),
+                                  child: Center(
+                                    child: Text(
+                                      'Change email or phone',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 13,
+                                        color: Colors.white70,
+                                        decoration: TextDecoration.underline,
                                       ),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.arrow_forward,
-                                        color: Color(0xFFFFC003),
-                                        size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ] else if (_forgotPasswordMode) ...[
+                                // Forgot Password layout
+                                Text(
+                                  'Enter your email to request a link to reset your password.',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.manrope(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildMockupInput(
+                                  controller: _inputController,
+                                  hint: 'Email',
+                                  keyboardType: TextInputType.emailAddress,
+                                ),
+                                const SizedBox(height: 20),
+                                _buildMockupButton(
+                                  text: 'Send Reset Link',
+                                  onTap: _handleForgotPassword,
+                                ),
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: () => setState(() => _forgotPasswordMode = false),
+                                  child: Center(
+                                    child: Text(
+                                      'Back to Login',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: TextDecoration.underline,
                                       ),
-                                    ],
+                                    ),
+                                  ),
+                                ),
+                              ] else if (_showPasswordField) ...[
+                                // Password Input field (Single box view)
+                                _buildMockupInput(
+                                  controller: _passwordController,
+                                  hint: 'Password for $_enteredEmail',
+                                  obscureText: _obscurePassword,
+                                  suffixIcon: GestureDetector(
+                                    onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                                    child: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                      color: Colors.grey.shade600,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                _buildMockupButton(
+                                  text: 'Sign In',
+                                  onTap: _handleEmailAuth,
+                                ),
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _showPasswordField = false;
+                                      _inputController.text = _enteredEmail;
+                                      _enteredEmail = '';
+                                    });
+                                  },
+                                  child: Center(
+                                    child: Text(
+                                      'Back to Email',
+                                      style: GoogleFonts.manrope(
+                                        fontSize: 13,
+                                        color: Colors.white70,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ] else ...[
+                                // Unified Email or Phone input field (Single box)
+                                _buildMockupInput(
+                                  controller: _inputController,
+                                  hint: 'Email or Mobile Number',
+                                  keyboardType: TextInputType.emailAddress,
+                                ),
+                                const SizedBox(height: 20),
+                                _buildMockupButton(
+                                  text: 'Continue',
+                                  onTap: _handleUnifiedSubmit,
+                                ),
+                              ],
+
+                              if (!_forgotPasswordMode && !_showPasswordField) ...[
+                                const SizedBox(height: 16),
+                                // Request a New Password
+                                GestureDetector(
+                                  onTap: _isLoading
+                                      ? null
+                                      : () => setState(() => _forgotPasswordMode = true),
+                                  child: Text(
+                                    'Request a New Password',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.manrope(
+                                      fontSize: 13,
+                                      color: Colors.white70,
+                                      decoration: TextDecoration.underline,
+                                    ),
                                   ),
                                 ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
                       ),
@@ -502,14 +615,14 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // 6. Full-screen loading overlay
+          // 3. Full-screen loading overlay
           if (_isLoading)
             Positioned.fill(
               child: AnimatedOpacity(
                 opacity: _isLoading ? 1 : 0,
                 duration: const Duration(milliseconds: 150),
                 child: Container(
-                  color: Colors.black.withOpacity(0.55),
+                  color: Colors.black.withOpacity(0.4),
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -519,7 +632,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 36,
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFC003)),
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE26139)),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -542,19 +655,19 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Builder for premium glassmorphic input fields
-  Widget _buildGlassmorphicInput({
+  // Builder for premium mockup input fields with solid light grey backgrounds
+  Widget _buildMockupInput({
     required TextEditingController controller,
     required String hint,
-    required IconData icon,
+    bool obscureText = false,
+    Widget? suffixIcon,
     TextInputType keyboardType = TextInputType.text,
     int? maxLength,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        color: const Color(0xFFF3F3F5), // Solid premium light grey background — single box, no extra ring
+        borderRadius: BorderRadius.circular(14),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: TextField(
@@ -562,179 +675,179 @@ class _LoginScreenState extends State<LoginScreen> {
         enabled: !_isLoading,
         keyboardType: keyboardType,
         maxLength: maxLength,
-        style: GoogleFonts.manrope(color: Colors.white, fontSize: 14),
+        obscureText: obscureText,
+        autofillHints: const [],
+        enableSuggestions: false,
+        autocorrect: false,
+        cursorColor: const Color(0xFFB32A2F),
+        style: GoogleFonts.manrope(
+          color: Colors.black87, // Highly readable dark text
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
         decoration: InputDecoration(
-          icon: Icon(icon, color: Colors.white70, size: 18),
           hintText: hint,
-          hintStyle: GoogleFonts.manrope(color: Colors.white.withOpacity(0.5), fontSize: 13),
+          hintStyle: GoogleFonts.manrope(
+            color: Colors.grey.shade500, // Balanced hint color
+            fontSize: 14,
+          ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
           counterText: '',
+          suffixIcon: suffixIcon,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
     );
   }
 
-  // Builder for premium login buttons
-  Widget _buildButton({
+  // Builder for premium mockup buttons
+  Widget _buildMockupButton({
     required String text,
     required VoidCallback onTap,
-    IconData? icon,
-    String? imageIcon,
-    required Color color,
-    required Color textColor,
   }) {
     return Opacity(
-      opacity: _isLoading ? 0.5 : 1,
+      opacity: _isLoading ? 0.6 : 1.0,
       child: GestureDetector(
         onTap: _isLoading ? null : onTap,
         child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          height: 52,
           decoration: BoxDecoration(
-            color: color,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFD37A), Color(0xFFE8AC3E)],
+            ),
             borderRadius: BorderRadius.circular(30),
-            boxShadow: color != Colors.white
-                ? [
-                    BoxShadow(
-                      color: color.withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (imageIcon != null)
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                  ),
-                  child: Center(
-                    child: Text(
-                      imageIcon,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF4285F4),
-                      ),
-                    ),
-                  ),
-                )
-              else if (icon != null)
-                Icon(
-                  icon,
-                  color: textColor.withOpacity(0.9),
-                  size: 18,
-                ),
-              if (icon != null || imageIcon != null) const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  text,
-                  style: GoogleFonts.manrope(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE8AC3E).withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
+          child: Center(
+            child: Text(
+              text,
+              style: GoogleFonts.manrope(
+                color: const Color(0xFF5C1A1A),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  // Firebase Send Password Reset Email Flow
+  Future<void> _handleForgotPassword() async {
+    final email = _inputController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid Email address to reset password'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _loadingLabel = 'Sending Reset Link…';
+    });
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset link sent to your email successfully!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() {
+          _forgotPasswordMode = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Reset password failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Reset Password: $e. Bypassed for testing.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() {
+          _forgotPasswordMode = false;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+}
+
+/// A small, locally-drawn multi-color Google "G" logo.
+/// Avoids any network dependency — always renders identically,
+/// regardless of connectivity or blocked image domains.
+class _GoogleLogo extends StatelessWidget {
+  final double size;
+  const _GoogleLogo({this.size = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _GoogleLogoPainter()),
     );
   }
 }
 
-/// A compact, strictly-bounded emblem (halo + trishul silhouette).
-class _EmblemPainter extends CustomPainter {
+class _GoogleLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final shortestSide = math.min(size.width, size.height);
+    final strokeWidth = size.width * 0.24;
+    final radius = (size.width - strokeWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Soft halo glow
-    final haloPaint = Paint()
-      ..shader = ui.Gradient.radial(
-        center,
-        shortestSide * 0.5,
-        [
-          const Color(0xFFF97316).withOpacity(0.4),
-          const Color(0xFFF59E0B).withOpacity(0.12),
-          Colors.transparent,
-        ],
-      );
-    canvas.drawCircle(center, shortestSide * 0.5, haloPaint);
-
-    // Outer ring
-    final ringPaint = Paint()
-      ..color = Colors.white.withOpacity(0.25)
+    final arcPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawCircle(center, shortestSide * 0.42, ringPaint);
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
 
-    final markPaint = Paint()
-      ..color = const Color(0xFFC8363C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = shortestSide * 0.045
-      ..strokeCap = StrokeCap.round;
+    // Four quadrant arcs in Google's brand colors.
+    arcPaint.color = const Color(0xFF4285F4); // blue
+    canvas.drawArc(rect, -0.4, 1.3, false, arcPaint);
 
-    // Simple trishul (trident) silhouette
-    final baseY = center.dy + shortestSide * 0.28;
-    final topY = center.dy - shortestSide * 0.30;
-    final spread = shortestSide * 0.16;
+    arcPaint.color = const Color(0xFF34A853); // green
+    canvas.drawArc(rect, 0.95, 1.05, false, arcPaint);
 
-    // Shaft
-    canvas.drawLine(Offset(center.dx, baseY), Offset(center.dx, topY), markPaint);
+    arcPaint.color = const Color(0xFFFBBC05); // yellow
+    canvas.drawArc(rect, 2.05, 1.05, false, arcPaint);
 
-    // Center prong
-    canvas.drawLine(
-      Offset(center.dx, topY),
-      Offset(center.dx, topY - shortestSide * 0.14),
-      markPaint,
+    arcPaint.color = const Color(0xFFEA4335); // red
+    canvas.drawArc(rect, 3.15, 1.15, false, arcPaint);
+
+    // Blue crossbar, characteristic of the Google "G".
+    final barPaint = Paint()..color = const Color(0xFF4285F4);
+    canvas.drawRect(
+      Rect.fromLTWH(
+        center.dx - strokeWidth * 0.1,
+        center.dy - strokeWidth / 2,
+        size.width / 2 - strokeWidth * 0.1,
+        strokeWidth,
+      ),
+      barPaint,
     );
-
-    // Left prong
-    final leftPath = Path()
-      ..moveTo(center.dx, topY)
-      ..quadraticBezierTo(
-        center.dx - spread * 0.6,
-        topY - shortestSide * 0.02,
-        center.dx - spread,
-        topY - shortestSide * 0.12,
-      );
-    canvas.drawPath(leftPath, markPaint);
-
-    // Right prong
-    final rightPath = Path()
-      ..moveTo(center.dx, topY)
-      ..quadraticBezierTo(
-        center.dx + spread * 0.6,
-        topY - shortestSide * 0.02,
-        center.dx + spread,
-        topY - shortestSide * 0.12,
-      );
-    canvas.drawPath(rightPath, markPaint);
-
-    // Crossbar near the base
-    canvas.drawLine(
-      Offset(center.dx - spread * 0.7, baseY - shortestSide * 0.08),
-      Offset(center.dx + spread * 0.7, baseY - shortestSide * 0.08),
-      markPaint,
-    );
-
-    // Small grounding dot
-    final dotPaint = Paint()
-      ..color = const Color(0xFFC8363C)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(center.dx, baseY), shortestSide * 0.025, dotPaint);
   }
 
   @override

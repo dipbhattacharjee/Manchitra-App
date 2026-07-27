@@ -1,0 +1,41 @@
+{
+  "year": 2026,
+  "days": [
+    {
+      "name": "Mahalaya",
+      "date": "2026-10-10",
+      "rituals": ["Tarpan", "Devi Paksha Invocation", "Chakshu Dan"],
+      "description": "Marks the auspicious beginning of Devi Paksha and Goddess Durga's arrival journey to Earth."
+    },
+    {
+      "name": "Maha Shashthi",
+      "date": "2026-10-16",
+      "rituals": ["Bilva Nimantran", "Kalparambha", "Bodhon", "Adhivas"],
+      "description": "The Goddess's idol is unveiled to the public for the first time amidst Dhak beats and Bodhon rituals."
+    },
+    {
+      "name": "Maha Saptami",
+      "date": "2026-10-17",
+      "rituals": ["Navapatrika Puja", "Kola Bou Snan", "Prana Pratishtha"],
+      "description": "Nine sacred plants symbolizing Durga's nine forms are bathed at dawn in the Hooghly river and installed."
+    },
+    {
+      "name": "Maha Ashtami",
+      "date": "2026-10-18",
+      "rituals": ["Pushpanjali", "Kumari Puja", "Sandhi Puja (108 Lamps & Lotus)"],
+      "description": "The most sacred day of Durga Puja; Sandhi Puja marks the precise junction between Ashtami and Navami when Mahishasuramardini slays Chanda and Munda."
+    },
+    {
+      "name": "Maha Navami",
+      "date": "2026-10-19",
+      "rituals": ["Navami Havan", "Maha Arati", "Bhog Prasad Distribution"],
+      "description": "Final day of grand battle between Durga and Mahishasura, celebrated with holy Havans and evening Dhunuchi Naach."
+    },
+    {
+      "name": "Vijaya Dashami",
+      "date": "2026-10-20",
+      "rituals": ["Dashami Puja", "Sindoor Khela", "Durga Visarjan", "Subho Bijoya Greetings"],
+      "description": "Durga Visarjan — ceremonial immersion of idols in the Hooghly river, marking Goddess Durga's return to Kailash."
+    }
+  ]
+}

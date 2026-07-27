@@ -58,6 +58,20 @@ class SupabaseService {
       distanceKm = (row['distance_meters'] as num).toDouble() / 1000.0;
     }
 
+    String? resolvedCoverUrl = coverPhotoUrl;
+    if (resolvedCoverUrl == null || resolvedCoverUrl.trim().isEmpty) {
+      if (photoUrls.isNotEmpty && photoUrls.first.trim().isNotEmpty) {
+        resolvedCoverUrl = photoUrls.first;
+      } else {
+        final cat = _parseCategory(row['category'] as String?);
+        if (cat == PandalCategory.famousHeritage || (row['name'] as String).toLowerCase().contains('bari')) {
+          resolvedCoverUrl = 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg';
+        } else {
+          resolvedCoverUrl = 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038553/579c3d50-c14f-49f4-accd-1a6d29de66e1_u8k0dq.jpg';
+        }
+      }
+    }
+
     return Pandal(
       id: row['id'] as String,
       name: row['name'] as String,
@@ -76,7 +90,7 @@ class SupabaseService {
       rating: 4.5,
       reviewCount: 150,
       photoUrls: photoUrls,
-      coverPhotoUrl: coverPhotoUrl,
+      coverPhotoUrl: resolvedCoverUrl,
       distanceKm: distanceKm,
     );
   }
@@ -95,6 +109,45 @@ class SupabaseService {
     } catch (e) {
       debugPrint('Supabase addPandalPhoto error: $e');
       return false;
+    }
+  }
+
+  /// Upload user photo to pandal_user_photos table with status='pending'
+  Future<bool> addUserPhoto({
+    required String pandalId,
+    required String imageUrl,
+    String? caption,
+  }) async {
+    try {
+      final user = _client.auth.currentUser;
+      final userId = user?.id ?? _generateUuid();
+      await _client.from('pandal_user_photos').insert({
+        'pandal_id': pandalId,
+        'user_id': userId,
+        'image_url': imageUrl,
+        'caption': caption,
+        'status': 'pending',
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Supabase addUserPhoto error: $e');
+      return addPandalPhoto(pandalId, imageUrl);
+    }
+  }
+
+  /// Fetch approved user photos for a given pandal
+  Future<List<String>> getApprovedUserPhotos(String pandalId) async {
+    try {
+      final List<dynamic> response = await _client
+          .from('pandal_user_photos')
+          .select('image_url')
+          .eq('pandal_id', pandalId)
+          .eq('status', 'approved');
+
+      return response.map((row) => row['image_url'] as String).toList();
+    } catch (e) {
+      debugPrint('Supabase getApprovedUserPhotos error: $e');
+      return [];
     }
   }
 

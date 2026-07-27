@@ -1,9 +1,18 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/theme.dart';
+import '../../core/models/models.dart';
+import '../../core/providers/pandal_provider.dart';
+import '../../core/services/route_service.dart';
+import '../pandals/pandal_detail_screen.dart';
+import '../route/hop_route_screen.dart';
+import '../../core/services/panjika_service.dart';
+import '../../core/services/calendar_sync_service.dart';
 
 /// ============================================================
-/// MANCHITRA — Trip Planning Calendar Screen
+/// MANCHITRA — Real Portable Trip Planning Calendar Screen
 /// ============================================================
 
 class TripCalendarScreen extends StatefulWidget {
@@ -15,218 +24,429 @@ class TripCalendarScreen extends StatefulWidget {
 }
 
 class _TripCalendarScreenState extends State<TripCalendarScreen> {
-  String _selectedDay = 'Saptami';
-  bool _reminderSet = false;
+  // Calendar state
+  DateTime _currentMonth = DateTime(2026, 10, 1);
+  DateTime _selectedDate = DateTime(2026, 10, 18); // Maha Ashtami default
+  String _selectedDayTab = 'Ashtami';
+  bool _isCalendarMinimized = false;
+  List<PujaDay> _pujaDays = [];
 
-  final Map<String, List<_CalendarEntry>> _dayPlans = {
-    'Saptami': [
-      const _CalendarEntry(
-        '09:00 AM',
-        'Suruchi Sangha',
-        'New Alipore',
-        description: 'Thematic Pandal known for its intricate sustainable craftwork. Expect 45 min queue.',
-        imageUrl: 'https://images.unsplash.com/photo-1620608581699-23c21a48c6a2?w=500',
-        distanceText: '2.4 km from stay',
-        priorityTag: 'High Priority',
-      ),
-      const _CalendarEntry(
-        '12:30 PM',
-        '6 Ballygunge Place',
-        'Ballygunge',
-        description: 'Traditional Bengali Lunch. Recommended: Kosha Mangsho and Basanti Pulao.',
-        isFood: true,
-        rating: '4.8',
-        reviews: '2.1k',
-        isPremium: true,
-      ),
-      const _CalendarEntry(
-        '03:00 PM',
-        'Ballygunge Cultural',
-        'Ballygunge',
-        description: "Exquisite traditional idol. Known for classical aesthetics and 'Shabeki' style.",
-        waitTime: '15 mins',
-        crowdLevel: 'Moderate',
-      ),
-      const _CalendarEntry(
-        '06:00 PM',
-        'Evening Arati & Cultural Program',
-        'Local Area',
-        description: 'Join the Dhunuchi Naach and traditional Arati rituals followed by local folk music.',
-        isEvent: true,
-        hasReminderButton: true,
-      ),
-    ],
-    'Ashtami': [
-      const _CalendarEntry(
-        '10:00 AM',
-        'Bagbazar Sarbojanin',
-        'North Kolkata',
-        description: 'One of the oldest and most revered Durga Puja committees in Kolkata. Expect massive crowds for Ashtami Anjali.',
-        imageUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038553/579c3d50-c14f-49f4-accd-1a6d29de66e1_u8k0dq.jpg',
-        distanceText: '1.2 km from stay',
-        priorityTag: 'High Priority',
-      ),
-      const _CalendarEntry(
-        '01:00 PM',
-        'Traditional Ashtami Bhog',
-        'North Kolkata',
-        description: 'Enjoy delicious Khichuri Bhog, Labra, and Payesh served at the pandal community hall.',
-        isFood: true,
-        rating: '4.9',
-        reviews: '5k',
-      ),
-      const _CalendarEntry(
-        '04:00 PM',
-        'Kumartuli Park Durgotsav',
-        'North Kolkata',
-        description: 'Located in the artisan district, showcasing beautiful traditional art.',
-        waitTime: '20 mins',
-        crowdLevel: 'High',
-      ),
-    ],
-    'Navami': [
-      const _CalendarEntry(
-        '11:00 AM',
-        'Ekdalia Evergreen',
-        'South Kolkata',
-        description: 'Famous for its light decorations and massive temple replica. Expect high crowds.',
-        imageUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784039236/ekdalia-evergreen_fbvbsr.jpg',
-        distanceText: '3.8 km from stay',
-      ),
-      const _CalendarEntry(
-        '02:00 PM',
-        'Kolkata Street Food Crawl',
-        'South Kolkata',
-        description: 'Taste the iconic egg rolls, phuchka, and cutlets near Gariahat crossing.',
-        isFood: true,
-        rating: '4.7',
-        reviews: '1.2k',
-      ),
-      const _CalendarEntry(
-        '07:00 PM',
-        'Dhunuchi Naach Competition',
-        'South Kolkata',
-        description: 'Watch the energetic traditional dance with clay incense burners.',
-        isEvent: true,
-        hasReminderButton: true,
-      ),
-    ],
-    'Dashami': [],
-  };
+  // In-app notification state
+  bool _showNotificationBanner = false;
+  String? _activeNotificationTitle;
+  String? _activeNotificationBody;
+  Timer? _notificationTimer;
+  Timer? _dismissTimer;
+
+  // Custom added entries per date string (yyyy-MM-dd)
+  final Map<String, List<_CalendarEntry>> _customEntries = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPanjikaData();
+    _syncTabWithDate(_selectedDate);
+  }
+
+  Future<void> _loadPanjikaData() async {
+    final days = await PanjikaService.instance.getPujaDays();
+    if (mounted) {
+      setState(() {
+        _pujaDays = days;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
+
+  void _syncTabWithDate(DateTime date) {
+    if (date.month == 10) {
+      if (date.day == 10) _selectedDayTab = 'Mahalaya';
+      else if (date.day == 16) _selectedDayTab = 'Sasthi';
+      else if (date.day == 17) _selectedDayTab = 'Saptami';
+      else if (date.day == 18) _selectedDayTab = 'Ashtami';
+      else if (date.day == 19) _selectedDayTab = 'Navami';
+      else if (date.day == 20) _selectedDayTab = 'Dashami';
+      else _selectedDayTab = 'Oct ${date.day}';
+    } else {
+      _selectedDayTab = '${_monthName(date.month).substring(0, 3)} ${date.day}';
+    }
+  }
+
+  void _scheduleInAppNotification(String name, String time) {
+    _notificationTimer?.cancel();
+    _dismissTimer?.cancel();
+
+    _notificationTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _activeNotificationTitle = 'Puja Reminder: $name';
+          _activeNotificationBody = 'Your visit scheduled for $time is coming up! Live crowd status is available.';
+          _showNotificationBanner = true;
+        });
+
+        _dismissTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() {
+              _showNotificationBanner = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  String _dateKey(DateTime dt) {
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[month - 1];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pandalProvider = Provider.of<PandalProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFAF5),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFCFAF5),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: widget.onBack != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87, size: 20),
                 onPressed: widget.onBack,
               )
-            : null,
+            : (Navigator.of(context).canPop()
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                : null),
+        title: Text(
+          'Puja Trip Planner',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: AppColors.primary,
+            letterSpacing: -0.4,
+          ),
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.alt_route_rounded, color: AppColors.primary, size: 24),
+            tooltip: 'View Hop Route',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => HopRouteScreen(plannedDate: _selectedDate)),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_none_rounded, color: Colors.black87, size: 24),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No new notifications.')),
+                const SnackBar(
+                  content: Text('No unread notifications.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             },
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Header title & description
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
-              child: Column(
+          // Single Unified ScrollView for full page (Calendar moves naturally up & down with itinerary content)
+          SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
+                // Header title with Flexible column to fix right overflow
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'My Festive Calendar',
+                              style: GoogleFonts.manrope(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Organize real pandal visits and cultural experiences.',
+                              style: GoogleFonts.manrope(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Portable Calendar Toggle Button
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _isCalendarMinimized = !_isCalendarMinimized;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isCalendarMinimized ? Icons.calendar_month : Icons.unfold_less,
+                                color: AppColors.primary,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isCalendarMinimized ? 'Big View' : 'Minimize',
+                                style: GoogleFonts.manrope(
+                                  color: AppColors.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Interactive Real Portable Calendar View
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  child: _isCalendarMinimized
+                      ? _buildMinimizedCalendarBar()
+                      : _buildFullCalendarGrid(),
+                ),
+
+                // Day selection quick tabs
+                _buildPujaDayTabs(),
+                const SizedBox(height: 6),
+
+                // Panjika Highlight & Rituals Card
+                _buildPanjikaCard(),
+                const SizedBox(height: 6),
+
+                // Real Itinerary timeline section
+                _buildRealItinerarySection(pandalProvider),
+              ],
+            ),
+          ),
+
+          // Sliding notification banner overlay
+          if (_showNotificationBanner)
+            Positioned(
+              top: 12,
+              left: 16,
+              right: 16,
+              child: SafeArea(
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active_rounded, color: AppColors.secondary, size: 24),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _activeNotificationTitle ?? 'Puja Notification',
+                                style: GoogleFonts.manrope(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _activeNotificationBody ?? '',
+                                style: GoogleFonts.manrope(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70, size: 16),
+                          onPressed: () {
+                            setState(() {
+                              _showNotificationBanner = false;
+                            });
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact Minimized Calendar View
+  Widget _buildMinimizedCalendarBar() {
+    final dateString = '${_monthName(_selectedDate.month)} ${_selectedDate.day}, ${_selectedDate.year}';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calendar_today_rounded, color: AppColors.primary, size: 18),
+              const SizedBox(width: 10),
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'My Puja Calendar',
+                    dateString,
                     style: GoogleFonts.manrope(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                       color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 4),
                   Text(
-                    'Your divine journey through the heart of Bengal.',
+                    'Selected Day: $_selectedDayTab',
                     style: GoogleFonts.manrope(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-
-          // Monthly Calendar Grid
-          _buildMonthCalendarGrid(),
-
-          // Day selection tabs
-          _buildDayTabs(),
-          const SizedBox(height: 8),
-
-          // Timeline list
-          Expanded(
-            child: _buildItinerary(),
+          TextButton.icon(
+            onPressed: () => setState(() => _isCalendarMinimized = false),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.primary),
+            label: Text(
+              'Expand',
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMonthCalendarGrid() {
+  /// Full Big Calendar Grid View (Fixed Header Row to prevent right overflow)
+  Widget _buildFullCalendarGrid() {
     final List<String> weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    
-    // October 2026 starts on Thursday
-    final List<int?> daysInMonth = [
-      null, null, null,
-      1, 2, 3, 4,
-      5, 6, 7, 8, 9, 10, 11,
-      12, 13, 14, 15, 16, 17, 18,
-      19, 20, 21, 22, 23, 24, 25,
-      26, 27, 28, 29, 30, 31
-    ];
 
-    String? getDayKeyForDate(int date) {
-      if (date == 21) return 'Saptami';
-      if (date == 22) return 'Ashtami';
-      if (date == 23) return 'Navami';
-      if (date == 24) return 'Dashami';
-      return null;
+    final firstDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final daysInMonthCount = DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
+    final leadingPadding = (firstDayOfMonth.weekday - 1) % 7;
+
+    final List<int?> gridDays = [];
+    for (int i = 0; i < leadingPadding; i++) {
+      gridDays.add(null);
+    }
+    for (int d = 1; d <= daysInMonthCount; d++) {
+      gridDays.add(d);
     }
 
-    int? getSelectedDate() {
-      if (_selectedDay == 'Saptami') return 21;
-      if (_selectedDay == 'Ashtami') return 22;
-      if (_selectedDay == 'Navami') return 23;
-      if (_selectedDay == 'Dashami') return 24;
+    String? getPujaTitle(int day) {
+      if (_currentMonth.month == 10 && _currentMonth.year == 2026) {
+        if (day == 10) return 'Mahalaya';
+        if (day == 16) return 'Sasthi';
+        if (day == 17) return 'Saptami';
+        if (day == 18) return 'Ashtami';
+        if (day == 19) return 'Navami';
+        if (day == 20) return 'Dashami';
+      }
       return null;
     }
-
-    final selectedDate = getSelectedDate();
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF0EAE1)),
+        border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.01),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -235,105 +455,137 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Month Header & Navigation (Fixed for zero right overflow)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'October 2026',
-                style: GoogleFonts.manrope(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left_rounded, color: Colors.black87),
+                    onPressed: () {
+                      setState(() {
+                        _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1, 1);
+                      });
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_monthName(_currentMonth.month)} ${_currentMonth.year}',
+                    style: GoogleFonts.manrope(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right_rounded, color: Colors.black87),
+                    onPressed: () {
+                      setState(() {
+                        _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 1);
+                      });
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF2F0),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  'Durga Puja Month',
-                  style: TextStyle(color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.bold),
-                ),
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_up_rounded, color: Colors.black54, size: 22),
+                onPressed: () => setState(() => _isCalendarMinimized = true),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
           const SizedBox(height: 10),
+
+          // Weekdays Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: weekdays.map((w) => SizedBox(
-              width: 24,
+              width: 28,
               child: Center(
                 child: Text(
                   w,
                   style: GoogleFonts.manrope(
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
-                    color: Colors.grey[500],
+                    color: Colors.grey[600],
                   ),
                 ),
               ),
             )).toList(),
           ),
           const SizedBox(height: 6),
+
+          // Calendar Days Grid
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: daysInMonth.length,
+            itemCount: gridDays.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
               mainAxisSpacing: 4,
               crossAxisSpacing: 4,
-              childAspectRatio: 1.2,
+              childAspectRatio: 1.1,
             ),
             itemBuilder: (context, index) {
-              final dayVal = daysInMonth[index];
+              final dayVal = gridDays[index];
               if (dayVal == null) {
                 return const SizedBox.shrink();
               }
 
-              final String? dayKey = getDayKeyForDate(dayVal);
-              final bool isPujaDay = dayKey != null;
-              final bool isSelected = selectedDate == dayVal;
+              final dateOfCell = DateTime(_currentMonth.year, _currentMonth.month, dayVal);
+              final bool isSelected = _selectedDate.year == dateOfCell.year &&
+                  _selectedDate.month == dateOfCell.month &&
+                  _selectedDate.day == dateOfCell.day;
+              final pujaTitle = getPujaTitle(dayVal);
+              final bool isPujaDay = pujaTitle != null;
 
               return GestureDetector(
                 onTap: () {
-                  if (isPujaDay) {
-                    setState(() {
-                      _selectedDay = dayKey;
-                    });
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('No custom puja schedule created for October $dayVal.'),
-                        duration: const Duration(seconds: 1),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
+                  setState(() {
+                    _selectedDate = dateOfCell;
+                    _syncTabWithDate(_selectedDate);
+                  });
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isSelected 
-                        ? const Color(0xFFAF101A) 
+                    color: isSelected
+                        ? AppColors.primary
                         : (isPujaDay ? const Color(0xFFFFF2F0) : Colors.transparent),
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(10),
                     border: (isPujaDay && !isSelected)
                         ? Border.all(color: AppColors.primary.withOpacity(0.5), width: 1)
                         : null,
                   ),
-                  child: Center(
-                    child: Text(
-                      dayVal.toString(),
-                      style: GoogleFonts.manrope(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                        color: isSelected 
-                            ? Colors.white 
-                            : (isPujaDay ? AppColors.primary : Colors.black87),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        dayVal.toString(),
+                        style: GoogleFonts.manrope(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: isSelected
+                              ? Colors.white
+                              : (isPujaDay ? AppColors.primary : Colors.black87),
+                        ),
                       ),
-                    ),
+                      if (pujaTitle != null)
+                        Text(
+                          pujaTitle,
+                          style: TextStyle(
+                            fontSize: 7,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected ? Colors.white70 : AppColors.primary,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               );
@@ -344,51 +596,67 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
     );
   }
 
-  Widget _buildDayTabs() {
-    final List<Map<String, String>> days = [
-      {'key': 'Saptami', 'date': 'OCT 21'},
-      {'key': 'Ashtami', 'date': 'OCT 22'},
-      {'key': 'Navami', 'date': 'OCT 23'},
-      {'key': 'Dashami', 'date': 'OCT 24'},
+  /// Puja Days Horizontal Selection Tabs
+  Widget _buildPujaDayTabs() {
+    final List<Map<String, dynamic>> tabs = [
+      {'key': 'Mahalaya', 'date': DateTime(2026, 10, 10), 'label': 'OCT 10'},
+      {'key': 'Sasthi', 'date': DateTime(2026, 10, 16), 'label': 'OCT 16'},
+      {'key': 'Saptami', 'date': DateTime(2026, 10, 17), 'label': 'OCT 17'},
+      {'key': 'Ashtami', 'date': DateTime(2026, 10, 18), 'label': 'OCT 18'},
+      {'key': 'Navami', 'date': DateTime(2026, 10, 19), 'label': 'OCT 19'},
+      {'key': 'Dashami', 'date': DateTime(2026, 10, 20), 'label': 'OCT 20'},
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
-        children: days.map((day) {
-          final isSelected = _selectedDay == day['key'];
+        children: tabs.map((t) {
+          final DateTime tabDate = t['date'] as DateTime;
+          final bool isSelected = _selectedDate.year == tabDate.year &&
+              _selectedDate.month == tabDate.month &&
+              _selectedDate.day == tabDate.day;
+
           return GestureDetector(
-            onTap: () => setState(() => _selectedDay = day['key']!),
+            onTap: () {
+              setState(() {
+                _selectedDate = tabDate;
+                _currentMonth = DateTime(tabDate.year, tabDate.month, 1);
+                _syncTabWithDate(tabDate);
+              });
+            },
             child: Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFAF101A) : Colors.white,
-                borderRadius: BorderRadius.circular(32),
+                color: isSelected ? AppColors.primary : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.border,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    day['date']!,
+                    t['label'] as String,
                     style: GoogleFonts.manrope(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white70 : Colors.grey[500],
+                      color: isSelected ? Colors.white70 : Colors.grey[600],
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
-                    day['key']!,
+                    t['key'] as String,
                     style: GoogleFonts.manrope(
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: isSelected ? Colors.white : Colors.black87,
                     ),
@@ -402,617 +670,631 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
     );
   }
 
-  Widget _buildItinerary() {
-    final entries = _dayPlans[_selectedDay] ?? [];
+  /// Panjika Rituals & Highlights Card for Active Selected Day
+  Widget _buildPanjikaCard() {
+    PujaDay? activeDay;
+    final dateStr = _dateKey(_selectedDate);
+    try {
+      activeDay = _pujaDays.firstWhere((d) => d.dateString == dateStr);
+    } catch (_) {
+      activeDay = null;
+    }
 
-    if (entries.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              'No hops planned for $_selectedDay yet.',
-              style: GoogleFonts.manrope(color: Colors.grey[600], fontSize: 14),
+    if (activeDay == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2A080C), Color(0xFF500F17)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${activeDay.name} 2026',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final success =
+                      await CalendarSyncService.instance.addPujaDayToCalendar(activeDay!);
+                  if (success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${activeDay.name} added to your device calendar!'),
+                        backgroundColor: const Color(0xFF2A8A4A),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.secondary,
+                  foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.event_available_rounded, size: 14, color: Colors.black87),
+                label: const Text(
+                  'Add to Calendar',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            activeDay.description,
+            style: GoogleFonts.manrope(
+              fontSize: 12,
+              color: Colors.white70,
+              height: 1.35,
+            ),
+          ),
+          if (activeDay.rituals.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: activeDay.rituals.map((r) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.brightness_7_rounded, size: 10, color: AppColors.secondary),
+                      const SizedBox(width: 4),
+                      Text(
+                        r,
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Real Itinerary Section using Provider & HopListManager
+  Widget _buildRealItinerarySection(PandalProvider provider) {
+    final dKey = _dateKey(_selectedDate);
+    final customList = _customEntries[dKey] ?? [];
+
+    // Real selected pandals from user's Hop List or provider
+    final List<Pandal> hopPandals = HopListManager.selectedPandals;
+
+    // Filter pandals for this day
+    final List<Pandal> displayPandals = [];
+    if (hopPandals.isNotEmpty) {
+      displayPandals.addAll(hopPandals);
+    } else if (provider.pandals.isNotEmpty) {
+      // Show featured top 3 pandals from real database if user hop list is empty
+      displayPandals.addAll(provider.pandals.take(3));
+    }
+
+    final int totalItems = displayPandals.length + customList.length;
+
+    if (totalItems == 0) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.temple_hindu_outlined, size: 54, color: AppColors.secondary),
+              const SizedBox(height: 12),
+              Text(
+                'No visits scheduled for $_selectedDayTab yet.',
+                style: GoogleFonts.manrope(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Add pandals from the database or your Hop List to build your trip!',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => _showAddPandalFromDatabaseSheet(provider),
+                icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
+                label: Text(
+                  'Add Pandal from Database',
+                  style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 120, left: 24, right: 24),
-      itemCount: entries.length + 1,
-      itemBuilder: (context, i) {
-        if (i < entries.length) {
-          return _buildCalendarEntry(entries[i], i, entries.length);
-        } else {
-          return Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 60),
-            child: _buildAiOptimizerCard(),
-          );
-        }
-      },
-    );
-  }
-
-  Widget _buildCalendarEntry(_CalendarEntry entry, int index, int total) {
-    IconData icon;
-    Color iconColor;
-    Color timeColor;
-
-    if (entry.isFood) {
-      icon = Icons.restaurant;
-      iconColor = const Color(0xFFAF101A);
-      timeColor = const Color(0xFFAF101A);
-    } else if (entry.isEvent) {
-      icon = Icons.theater_comedy;
-      iconColor = const Color(0xFF8A1E65);
-      timeColor = const Color(0xFF8A1E65);
-    } else {
-      icon = Icons.temple_hindu;
-      iconColor = const Color(0xFFDFB610);
-      timeColor = const Color(0xFFDFB610);
-    }
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. Left Timeline Line & Icon
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Column(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: iconColor,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: iconColor.withOpacity(0.1),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: iconColor, size: 18),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // View Route on Map Banner Card for current selected date
+        if (displayPandals.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.primary, Color(0xFF8B1A1A)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
-                if (index < total - 1)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: const Color(0xFFE6DCBC),
-                    ),
-                  ),
               ],
             ),
-          ),
-
-          // 2. Right Content Card
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  entry.time,
-                  style: GoogleFonts.manrope(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: timeColor,
-                  ),
-                ),
-                const SizedBox(height: 6),
                 Container(
-                  margin: const EdgeInsets.only(bottom: 24),
-                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.015),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                    border: Border.all(color: Colors.grey[100]!),
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
                   ),
-                  padding: const EdgeInsets.all(16),
+                  child: const Icon(Icons.map_rounded, color: AppColors.secondary, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header title & potential badge
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              entry.name,
-                              style: GoogleFonts.manrope(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          if (entry.priorityTag != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFAF101A),
-                                borderRadius: BorderRadius.circular(100),
-                              ),
-                              child: Text(
-                                entry.priorityTag!,
-                                style: GoogleFonts.manrope(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Description
                       Text(
-                        entry.description,
+                        'View Route on Map ($_selectedDayTab)',
                         style: GoogleFonts.manrope(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                          height: 1.4,
-                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
                       ),
-
-                      // Optional image with inline overlay
-                      if (entry.imageUrl != null) ...[
-                        const SizedBox(height: 12),
-                        Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.network(
-                                entry.imageUrl!,
-                                height: 120,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            if (entry.distanceText != null)
-                              Positioned(
-                                left: 12,
-                                bottom: 12,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.55),
-                                    borderRadius: BorderRadius.circular(100),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.location_on, size: 12, color: Colors.white),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        entry.distanceText!,
-                                        style: GoogleFonts.manrope(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
+                      const SizedBox(height: 2),
+                      Text(
+                        'Access map route for ${displayPandals.length} scheduled pandals',
+                        style: GoogleFonts.manrope(
+                          color: Colors.white70,
+                          fontSize: 11,
                         ),
-                      ],
-
-                      // Optional food badges
-                      if (entry.isFood && (entry.rating != null || entry.isPremium)) ...[
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (entry.rating != null)
-                              _buildBadge(
-                                '★ ${entry.rating} (${entry.reviews ?? ""})',
-                                icon: Icons.star_rounded,
-                              ),
-                            if (entry.isPremium)
-                              _buildBadge(
-                                'Premium',
-                                icon: Icons.attach_money_rounded,
-                              ),
-                          ],
-                        ),
-                      ],
-
-                      // Optional wait time & crowd level badges
-                      if (entry.waitTime != null || entry.crowdLevel != null) ...[
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (entry.waitTime != null)
-                              _buildBadge(
-                                'Wait Time: ${entry.waitTime}',
-                                icon: Icons.access_time_rounded,
-                              ),
-                            if (entry.crowdLevel != null)
-                              _buildBadge(
-                                'Crowd Level: ${entry.crowdLevel}',
-                                icon: Icons.people_outline_rounded,
-                              ),
-                          ],
-                        ),
-                      ],
-
-                      // Optional reminder button
-                      if (entry.hasReminderButton) ...[
-                        const SizedBox(height: 12),
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _reminderSet = !_reminderSet;
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(_reminderSet
-                                    ? 'Reminder set for "${entry.name}"!'
-                                    : 'Reminder cancelled!'),
-                                backgroundColor: const Color(0xFFAF101A),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _reminderSet ? '✓ Reminder Set' : 'Set Reminder',
-                                style: GoogleFonts.manrope(
-                                  color: const Color(0xFFAF101A),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Color(0xFFAF101A),
-                                size: 14,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    provider.setRouteStops(displayPandals);
+                    for (final p in displayPandals) {
+                      HopListManager.add(p);
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => HopRouteScreen(plannedDate: _selectedDate)),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondary,
+                    foregroundColor: Colors.black87,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.alt_route_rounded, size: 14, color: Colors.black87),
+                  label: Text(
+                    'Open Map',
+                    style: GoogleFonts.manrope(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildBadge(String text, {IconData? icon}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F4F4),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: Colors.grey[700]),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            text,
-            style: GoogleFonts.manrope(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAiOptimizerCard() {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF1F1),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFFDCBCB), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 15,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        // Action Bar for the Day
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.auto_awesome, color: Color(0xFFAF101A), size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'AI Optimizer',
-                    style: GoogleFonts.manrope(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
+              Text(
+                'Scheduled Stops (${displayPandals.length + customList.length})',
+                style: GoogleFonts.manrope(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.only(right: 48),
-                child: Text(
-                  '"Crowd density at Suruchi is expected to spike after 10 AM. If you leave 15 mins earlier, you can bypass the morning rush. Also, 6 Ballygunge Place has a table available at 12:15 PM!"',
+              TextButton.icon(
+                onPressed: () => _showAddPandalFromDatabaseSheet(provider),
+                icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+                label: Text(
+                  'Add Stop',
                   style: GoogleFonts.manrope(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                    fontWeight: FontWeight.w500,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
               ),
             ],
           ),
         ),
-        Positioned(
-          right: 16,
-          bottom: 24,
-          child: GestureDetector(
-            onTap: _handleAddPlanItem,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: const BoxDecoration(
-                color: Color(0xFFAF101A),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x3FAF101A),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.add, color: Colors.white, size: 24),
-            ),
-          ),
+
+        // Non-scrollable list view so parent SingleChildScrollView scrolls smoothly
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          itemCount: displayPandals.length + customList.length,
+          itemBuilder: (context, index) {
+            if (index < displayPandals.length) {
+              final pandal = displayPandals[index];
+              final String timeSlot = '${(9 + (index * 2)).toString().padLeft(2, '0')}:00 PM';
+              return _buildRealPandalEntry(pandal, timeSlot, index, displayPandals.length + customList.length);
+            } else {
+              final customIdx = index - displayPandals.length;
+              final entry = customList[customIdx];
+              return _buildCustomEntryItem(entry, index, displayPandals.length + customList.length, dKey, customIdx);
+            }
+          },
         ),
       ],
     );
   }
 
-  void _handleAddPlanItem() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Plan Your Puja Day',
-              style: GoogleFonts.manrope(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Create a customized itinerary for $_selectedDay.',
-              style: GoogleFonts.manrope(
-                fontSize: 13,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Option 1: Auto-Fill Curated Day Plan
-            GestureDetector(
-              onTap: () {
-                Navigator.pop(context);
-                _autoFillDailyPlan();
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFDCBCB)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.auto_awesome, color: Color(0xFFAF101A), size: 28),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Auto-Fill Full Day Plan',
-                            style: GoogleFonts.manrope(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Fills the entire day (Early morning to Night) with curated pandals, food stops, and arati events.',
-                            style: GoogleFonts.manrope(
-                              fontSize: 11,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
+  /// Real Pandal Entry Card
+  Widget _buildRealPandalEntry(Pandal pandal, String time, int index, int total) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Timeline indicator
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: Column(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.1),
+                        blurRadius: 4,
                       ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFAF101A)),
-                  ],
+                    ],
+                  ),
+                  child: const Icon(Icons.temple_hindu_rounded, color: AppColors.primary, size: 16),
                 ),
-              ),
+                if (index < total - 1)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: AppColors.border,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            // Option 2: Add Custom Plan
-            GestureDetector(
+          ),
+
+          // Content Card
+          Expanded(
+            child: GestureDetector(
               onTap: () {
-                Navigator.pop(context);
-                _showCustomAddSheet();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => PandalDetailScreen(pandal: pandal)),
+                );
               },
               child: Container(
-                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey[200]!),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.add_circle_outline_rounded, color: Colors.grey, size: 28),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Add Custom Event',
-                            style: GoogleFonts.manrope(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          time,
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.secondary,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Manually add a specific Pandal visit or Restaurant dining time to your schedule.',
-                            style: GoogleFonts.manrope(
-                              fontSize: 11,
-                              color: Colors.grey[700],
-                            ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: pandal.crowdLevel.color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
+                          child: Row(
+                            children: [
+                              Icon(Icons.people_alt, size: 10, color: pandal.crowdLevel.color),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${pandal.crowdLevel.label} Crowd',
+                                style: TextStyle(
+                                  color: pandal.crowdLevel.color,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      pandal.name,
+                      style: GoogleFonts.manrope(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, size: 12, color: AppColors.primary),
+                        const SizedBox(width: 2),
+                        Text(
+                          pandal.area,
+                          style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                    if (pandal.coverPhotoUrl != null && pandal.coverPhotoUrl!.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          pandal.coverPhotoUrl!,
+                          height: 110,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.notifications_active_outlined, color: AppColors.primary, size: 18),
+                              tooltip: 'In-App Reminder',
+                              onPressed: () {
+                                _scheduleInAppNotification(pandal.name, time);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Reminder set for ${pandal.name}'),
+                                    backgroundColor: AppColors.primary,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                            const SizedBox(width: 14),
+                            IconButton(
+                              icon: const Icon(Icons.event_available_rounded, color: Color(0xFF2A8A4A), size: 18),
+                              tooltip: 'Add Stop to Device Calendar',
+                              onPressed: () async {
+                                final scheduledTime = DateTime(
+                                  _selectedDate.year,
+                                  _selectedDate.month,
+                                  _selectedDate.day,
+                                  10 + (index * 2), // Staggered visit time
+                                  0,
+                                );
+                                final success = await CalendarSyncService.instance.addPandalStopToCalendar(
+                                  pandal: pandal,
+                                  scheduledDate: scheduledTime,
+                                );
+                                if (success && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('${pandal.name} synced to your device calendar!'),
+                                      backgroundColor: const Color(0xFF2A8A4A),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => PandalDetailScreen(pandal: pandal)),
+                            );
+                          },
+                          icon: const Icon(Icons.arrow_forward, size: 14, color: AppColors.secondary),
+                          label: Text(
+                            'View Details',
+                            style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  void _autoFillDailyPlan() {
-    setState(() {
-      _dayPlans[_selectedDay] = [
-        const _CalendarEntry(
-          '06:00 AM',
-          'Bagbazar Ghat & Morning Arati',
-          'Bagbazar',
-          description: 'Start your day with a holy dip/view at Bagbazar Ghat followed by the serene Morning Arati at Bagbazar Sarbojanin.',
-          isEvent: true,
-        ),
-        const _CalendarEntry(
-          '09:00 AM',
-          'Suruchi Sangha',
-          'New Alipore',
-          description: 'Thematic Pandal known for its intricate sustainable craftwork. Expect 45 min queue.',
-          imageUrl: 'https://images.unsplash.com/photo-1620608581699-23c21a48c6a2?w=500',
-          distanceText: '2.4 km from stay',
-          priorityTag: 'High Priority',
-        ),
-        const _CalendarEntry(
-          '12:30 PM',
-          '6 Ballygunge Place',
-          'Ballygunge',
-          description: 'Traditional Bengali Lunch. Recommended: Kosha Mangsho and Basanti Pulao.',
-          isFood: true,
-          rating: '4.8',
-          reviews: '2.1k',
-          isPremium: true,
-        ),
-        const _CalendarEntry(
-          '03:30 PM',
-          'Jorasanko Dawn Bari',
-          'Jorasanko',
-          description: 'Ancestral household family puja of Shibkrishna Dawn. Known for the grand mansion courtyard and gold/silver decorations.',
-          imageUrl: 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg',
-          distanceText: '5.1 km from lunch',
-        ),
-        const _CalendarEntry(
-          '06:00 PM',
-          'Sandhya Arati & Dhunuchi Naach',
-          'Mohammad Ali Park',
-          description: 'Experience the magical Sandhya Arati and traditional Dhunuchi Naach over the iconic waterfront.',
-          isEvent: true,
-          hasReminderButton: true,
-        ),
-        const _CalendarEntry(
-          '09:00 PM',
-          'College Square Illumination',
-          'Central Kolkata',
-          description: 'Famous for the stunning waterfront illumination reflecting beautifully over the lake.',
-          waitTime: '20 mins',
-          crowdLevel: 'Very High',
-        ),
-      ];
-    });
+  /// Custom User Entry Item
+  Widget _buildCustomEntryItem(_CalendarEntry entry, int index, int total, String dKey, int customIdx) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: Column(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.secondary, width: 2),
+                  ),
+                  child: const Icon(Icons.stars_rounded, color: AppColors.secondary, size: 16),
+                ),
+                if (index < total - 1)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: AppColors.border,
+                    ),
+                  ),
+              ],
+            ),
+          ),
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Curated Daily Plan (Morning to Night) generated for $_selectedDay!'),
-        backgroundColor: const Color(0xFFAF101A),
-        behavior: SnackBarBehavior.floating,
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        entry.time,
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.grey),
+                        onPressed: () {
+                          setState(() {
+                            _customEntries[dKey]?.removeAt(customIdx);
+                          });
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    entry.name,
+                    style: GoogleFonts.manrope(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    entry.description,
+                    style: GoogleFonts.manrope(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _showCustomAddSheet() {
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-    final timeController = TextEditingController(text: '12:00 PM');
-    bool isFood = false;
-
+  /// Bottom Sheet to Pick and Add Real Pandals from Database
+  void _showAddPandalFromDatabaseSheet(PandalProvider provider) {
+    String query = '';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1021,152 +1303,132 @@ class _TripCalendarScreenState extends State<TripCalendarScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            left: 24,
-            right: 24,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Add Plan to $_selectedDay',
-                style: GoogleFonts.manrope(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name (Pandal or Food place)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(
-                  labelText: 'Description / Recommended items',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: timeController,
-                decoration: const InputDecoration(
-                  labelText: 'Time (e.g., 01:00 PM)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Text(
-                    'Is this a food stop?',
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  Switch(
-                    value: isFood,
-                    onChanged: (val) {
-                      setModalState(() {
-                        isFood = val;
-                      });
-                    },
-                    activeColor: const Color(0xFFAF101A),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFAF101A),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (nameController.text.trim().isEmpty) return;
-                    setState(() {
-                      final newEntry = _CalendarEntry(
-                        timeController.text.trim(),
-                        nameController.text.trim(),
-                        isFood ? 'Restaurant / Dining' : 'Durga Puja Pandal',
-                        description: descController.text.trim().isNotEmpty
-                            ? descController.text.trim()
-                            : 'Planned visit during Puja.',
-                        isFood: isFood,
-                      );
-                      if (_dayPlans[_selectedDay] == null) {
-                        _dayPlans[_selectedDay] = [];
-                      }
-                      _dayPlans[_selectedDay]!.add(newEntry);
-                    });
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Added "${nameController.text.trim()}" to $_selectedDay!'),
-                        backgroundColor: const Color(0xFFAF101A),
+        builder: (context, setModalState) {
+          final filtered = provider.pandals.where((p) {
+            if (query.trim().isEmpty) return true;
+            return p.name.toLowerCase().contains(query.trim().toLowerCase()) ||
+                p.area.toLowerCase().contains(query.trim().toLowerCase());
+          }).toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.75,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Add Pandal to $_selectedDayTab',
+                      style: GoogleFonts.manrope(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                    );
-                  },
-                  child: Text(
-                    'Add Plan',
-                    style: GoogleFonts.manrope(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  onChanged: (val) => setModalState(() => query = val),
+                  decoration: InputDecoration(
+                    hintText: 'Search pandals in Kolkata...',
+                    prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const Center(child: Text('No pandals found matching query.'))
+                      : ListView.builder(
+                          itemCount: filtered.length,
+                          itemBuilder: (context, idx) {
+                            final item = filtered[idx];
+                            final isInHop = HopListManager.selectedPandals.any((p) => p.id == item.id);
+
+                            return ListTile(
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: item.coverPhotoUrl != null && item.coverPhotoUrl!.isNotEmpty
+                                    ? Image.network(
+                                        item.coverPhotoUrl!,
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 50,
+                                          height: 50,
+                                          color: AppColors.primaryContainer,
+                                          child: const Icon(Icons.temple_hindu, color: AppColors.primary),
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 50,
+                                        height: 50,
+                                        color: AppColors.primaryContainer,
+                                        child: const Icon(Icons.temple_hindu, color: AppColors.primary),
+                                      ),
+                              ),
+                              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(item.area),
+                              trailing: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isInHop ? AppColors.secondary : AppColors.primary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                onPressed: () {
+                                  if (!isInHop) {
+                                    HopListManager.add(item);
+                                    provider.addToRoute(item);
+                                  }
+                                  setState(() {});
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Added ${item.name} to $_selectedDayTab trip!'),
+                                      backgroundColor: AppColors.primary,
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  isInHop ? 'Added' : 'Add',
+                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class _CalendarEntry {
-  const _CalendarEntry(
+  _CalendarEntry(
     this.time,
     this.name,
     this.location, {
     required this.description,
-    this.isFood = false,
-    this.isEvent = false,
-    this.imageUrl,
-    this.distanceText,
-    this.priorityTag,
-    this.rating,
-    this.reviews,
-    this.isPremium = false,
-    this.waitTime,
-    this.crowdLevel,
-    this.hasReminderButton = false,
   });
 
   final String time;
   final String name;
   final String location;
   final String description;
-  final bool isFood;
-  final bool isEvent;
-  final String? imageUrl;
-  final String? distanceText;
-  final String? priorityTag;
-  final String? rating;
-  final String? reviews;
-  final bool isPremium;
-  final String? waitTime;
-  final String? crowdLevel;
-  final bool hasReminderButton;
 }

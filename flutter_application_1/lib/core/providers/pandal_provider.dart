@@ -4,6 +4,8 @@ import '../models/models.dart';
 import '../services/supabase_service.dart';
 import '../services/route_optimizer.dart';
 
+import '../services/github_pandal_service.dart';
+
 class PandalProvider extends ChangeNotifier {
   final SupabaseService _supabaseService = SupabaseService.instance;
 
@@ -26,6 +28,15 @@ class PandalProvider extends ChangeNotifier {
   String get selectedCategory => _selectedCategory;
   String get selectedArea => _selectedArea;
   bool get featuredOnly => _featuredOnly;
+
+  // Active City/Location Context
+  String _selectedLocation = 'Kolkata, West Bengal';
+  String get selectedLocation => _selectedLocation;
+
+  void setSelectedLocation(String location) {
+    _selectedLocation = location;
+    notifyListeners();
+  }
 
   // Selected Hop Route state
   List<Pandal> _routeStops = [];
@@ -76,7 +87,7 @@ class PandalProvider extends ChangeNotifier {
     fetchPandals();
   }
 
-  // Fetch pandals from Supabase
+  // Fetch pandals from Supabase / GitHub CDN API
   Future<void> fetchPandals() async {
     _isLoading = true;
     _errorMessage = null;
@@ -100,18 +111,46 @@ class PandalProvider extends ChangeNotifier {
           _selectedCategory == 'All' &&
           _selectedArea == 'All' &&
           !_featuredOnly) {
-        _pandals = SampleData.featuredPandals;
+        final githubPandals = await GithubPandalService.fetchPandalsFromGitHub();
+        if (githubPandals.isNotEmpty) {
+          _pandals = githubPandals;
+        } else {
+          _pandals = SampleData.featuredPandals;
+        }
       }
       _errorMessage = null;
     } catch (e) {
       _errorMessage = 'Failed to fetch pandals: $e';
-      // Fallback if query fails
-      if (_searchQuery.isEmpty &&
-          _selectedCategory == 'All' &&
-          _selectedArea == 'All' &&
-          !_featuredOnly) {
+      // Fallback to GitHub API if DB fails
+      try {
+        final githubPandals = await GithubPandalService.fetchPandalsFromGitHub();
+        if (githubPandals.isNotEmpty) {
+          _pandals = githubPandals;
+        } else {
+          _pandals = SampleData.featuredPandals;
+        }
+      } catch (_) {
         _pandals = SampleData.featuredPandals;
       }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Explicitly fetch pandals directly from GitHub API
+  Future<void> fetchFromGitHubDirectly() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final githubPandals = await GithubPandalService.fetchPandalsFromGitHub();
+      if (githubPandals.isNotEmpty) {
+        _pandals = githubPandals;
+      }
+    } catch (e) {
+      _errorMessage = 'Failed to fetch from GitHub CDN API: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -161,6 +200,11 @@ class PandalProvider extends ChangeNotifier {
     final startLng = _userPosition?.longitude ?? kolkataLng;
 
     _routeStops = RouteOptimizer.optimizeRoute(_routeStops, startLat, startLng);
+    notifyListeners();
+  }
+
+  void setRouteStops(List<Pandal> stops) {
+    _routeStops = List.from(stops);
     notifyListeners();
   }
 

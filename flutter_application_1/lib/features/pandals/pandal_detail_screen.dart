@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../core/theme/theme.dart';
 import '../../core/models/models.dart';
 import '../../shared/widgets/common_widgets.dart';
@@ -8,7 +10,12 @@ import '../../core/services/route_service.dart';
 import '../../core/services/cloudinary_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../profile/profile_data.dart';
+import '../route/hop_route_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import '../../core/providers/pandal_provider.dart';
+import '../../shared/widgets/loading/loading.dart';
+import '../../shared/widgets/states/skeleton_loaders.dart';
 
 /// ============================================================
 /// MANCHITRA — Pandal Detail Screen
@@ -28,6 +35,7 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
   late List<String> _photoUrls;
   String? _coverPhotoUrl;
   bool _isUploading = false;
+  bool _isDescriptionExpanded = false;
 
   @override
   void initState() {
@@ -137,28 +145,23 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
         return;
       }
 
-      final isFirstPhoto = _photoUrls.isEmpty && (_coverPhotoUrl == null || _coverPhotoUrl!.isEmpty);
-      final success = await SupabaseService.instance.addPandalPhoto(
-        widget.pandal.id,
-        imageUrl,
-        isCover: isFirstPhoto,
+      final success = await SupabaseService.instance.addUserPhoto(
+        pandalId: widget.pandal.id,
+        imageUrl: imageUrl,
       );
 
       if (success) {
         setState(() {
-          if (isFirstPhoto) {
-            _coverPhotoUrl = imageUrl;
-          } else {
-            _photoUrls.add(imageUrl);
-          }
           _isUploading = false;
         });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Photo uploaded and saved to Supabase!'),
+              content: Text('Photo submitted — pending review!'),
               backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
             ),
           );
         }
@@ -184,7 +187,10 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
+      body: AppLoadingOverlay(
+        isLoading: _isUploading,
+        message: 'Uploading photo to Manchitra gallery...',
+        child: CustomScrollView(
         slivers: [
           // Hero image sliver
           _buildSliverHero(),
@@ -208,6 +214,7 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
             ),
           ),
         ],
+      ),
       ),
 
       // Sticky action bar
@@ -492,6 +499,10 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
   }
 
   Widget _buildAboutSection() {
+    final descriptionText = widget.pandal.description ??
+        'This is one of the celebrated Durga Puja pandals in Kolkata, known for its spectacular theme and community spirit.';
+    final isLong = descriptionText.length > 80;
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -500,82 +511,217 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
           const SectionHeader(title: 'About This Pandal', icon: Icons.article_outlined),
           const SizedBox(height: 8),
           Text(
-            widget.pandal.description ??
-                'This is one of the celebrated Durga Puja pandals in Kolkata, known for its spectacular theme and community spirit.',
+            descriptionText,
             style: AppTextStyles.bodyMedium,
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
+            maxLines: _isDescriptionExpanded ? null : 3,
+            overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
           ),
-          TextButton(
-            onPressed: () {},
-            child: const Text('Read More'),
-          ),
+          if (isLong)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isDescriptionExpanded = !_isDescriptionExpanded;
+                });
+              },
+              child: Text(
+                _isDescriptionExpanded ? 'Read Less' : 'Read More',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildLocationSection() {
+    final lat = widget.pandal.latitude;
+    final lng = widget.pandal.longitude;
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(title: 'Location', icon: Icons.map_outlined),
+          const SectionHeader(title: 'Location & Map', icon: Icons.map_outlined),
           const SizedBox(height: 12),
 
-          // Map placeholder
+          // Pandal Address & Coordinates Card
           Container(
-            height: 160,
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
-            child: Stack(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Dark map placeholder
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    gradient: const RadialGradient(
-                      colors: [Color(0xFF1A2030), Color(0xFF0D1218)],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.location_on, color: AppColors.primary, size: 20),
                     ),
-                  ),
-                ),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: AppColors.glowSaffron, blurRadius: 12),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.pandal.name,
+                            style: AppTextStyles.titleSmall.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Area: ${widget.pandal.area}',
+                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                          ),
+                          if (widget.pandal.ward != null && widget.pandal.ward!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Ward No: ${widget.pandal.ward}',
+                              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                            ),
                           ],
-                        ),
-                        child: const Icon(Icons.location_pin, color: Colors.white, size: 24),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Coordinates: ${lat.toStringAsFixed(4)}° N, ${lng.toStringAsFixed(4)}° E',
+                            style: AppTextStyles.labelSmall.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${widget.pandal.area}',
-                        style: AppTextStyles.bodySmall.copyWith(color: Colors.white),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
 
-          OutlinedGoldButton(
-            onPressed: _launchMaps,
-            text: 'Get Directions',
-            icon: const Icon(Icons.directions, color: AppColors.secondary, size: 18),
-            height: 48,
+          // Real Interactive App Map (flutter_map OSM tiles)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    options: MapOptions(
+                      initialCenter: LatLng(lat, lng),
+                      initialZoom: 15.0,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.dipbhattacharjee.manchitra',
+                      ),
+                      RichAttributionWidget(
+                        alignment: AttributionAlignment.bottomRight,
+                        showFlutterMapAttribution: false,
+                        attributions: [
+                          TextSourceAttribution(
+                            '© OpenStreetMap contributors',
+                          ),
+                        ],
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(lat, lng),
+                            width: 50.0,
+                            height: 50.0,
+                            alignment: Alignment.center,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary.withOpacity(0.5),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.temple_hindu,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.map_rounded, color: Colors.white, size: 12),
+                          SizedBox(width: 4),
+                          Text(
+                            'Interactive App Map',
+                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedGoldButton(
+                  onPressed: () {
+                    if (!HopListManager.selectedPandals.any((p) => p.id == widget.pandal.id)) {
+                      HopListManager.add(widget.pandal);
+                    }
+                    context.read<PandalProvider>().addToRoute(widget.pandal);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HopRouteScreen()),
+                    );
+                  },
+                  text: 'In-App Route',
+                  icon: const Icon(Icons.alt_route_rounded, color: AppColors.secondary, size: 18),
+                  height: 48,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GradientButton(
+                  onPressed: _launchMaps,
+                  text: 'Get Directions',
+                  icon: const Icon(Icons.directions, color: Colors.white, size: 18),
+                  height: 48,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -589,24 +735,115 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
     );
   }
 
+  void _showNavigationOptionsModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Navigate to ${widget.pandal.name}',
+                      style: AppTextStyles.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(color: AppColors.border),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.alt_route_rounded, color: AppColors.primary),
+                ),
+                title: const Text('In-App Route Map', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('View AI-optimized route & live directions inside the app'),
+                onTap: () {
+                  Navigator.pop(context);
+                  if (!HopListManager.selectedPandals.any((p) => p.id == widget.pandal.id)) {
+                    HopListManager.add(widget.pandal);
+                  }
+                  context.read<PandalProvider>().addToRoute(widget.pandal);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HopRouteScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF2F0),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.near_me_rounded, color: AppColors.secondary),
+                ),
+                title: const Text('External Maps (Google / Apple)', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Open turn-by-turn navigation in external maps app'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _launchMaps();
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
+        border: const Border(top: BorderSide(color: AppColors.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Expanded(
+            flex: 3,
             child: GradientButton(
               onPressed: () {
                 setState(() {
                   _isInHop = !_isInHop;
                   if (_isInHop) {
                     HopListManager.add(widget.pandal);
+                    context.read<PandalProvider>().addToRoute(widget.pandal);
                   } else {
                     HopListManager.remove(widget.pandal.id);
+                    context.read<PandalProvider>().removeFromRoute(widget.pandal.id);
                   }
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -626,12 +863,14 @@ class _PandalDetailScreenState extends State<PandalDetailScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          OutlinedGoldButton(
-            onPressed: _launchMaps,
-            text: 'Navigate',
-            icon: const Icon(Icons.navigation, color: AppColors.secondary, size: 18),
-            height: 52,
-            width: null,
+          Expanded(
+            flex: 2,
+            child: OutlinedGoldButton(
+              onPressed: () => _showNavigationOptionsModal(context),
+              text: 'Navigate',
+              icon: const Icon(Icons.near_me_rounded, color: AppColors.secondary, size: 20),
+              height: 52,
+            ),
           ),
         ],
       ),

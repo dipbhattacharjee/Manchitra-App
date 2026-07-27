@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme.dart';
+import '../../core/models/models.dart';
+import '../../core/models/notification_model.dart';
+import '../../core/providers/pandal_provider.dart';
+import '../../core/services/notification_service.dart';
+import '../pandals/pandal_detail_screen.dart';
+import 'notification_settings_screen.dart';
+import 'package:provider/provider.dart';
+import '../../shared/widgets/states/skeleton_loaders.dart';
 
 /// ============================================================
-/// MANCHITRA — Notifications Screen (Screenshot 2 Redesign)
+/// MANCHITRA — Notifications Screen (Real Supabase Wiring & Deep-linking)
 /// ============================================================
 
 class NotificationsScreen extends StatefulWidget {
@@ -14,60 +21,76 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  final NotificationService _service = NotificationService.instance;
   String _selectedFilter = 'All';
+  bool _isLoading = true;
+  List<AppNotification> _notifications = [];
 
-  final List<_NotificationItem> _allNotifications = [
-    const _NotificationItem(
-      category: 'CROWD ALERT',
-      title: 'Suruchi Sangha Peak Traffic',
-      description: 'Heavy crowd detected. Expected wait time is now 45 minutes.',
-      time: 'Just now',
-      isUnread: true,
-      categoryType: _NotificationCategory.crowd,
-    ),
-    const _NotificationItem(
-      category: 'FESTIVAL UPDATES',
-      title: 'Special Aarti Timing Change',
-      description: 'The evening Aarti at Ekdalia Evergreen will begin 30 minutes earlier today.',
-      time: '2 hrs ago',
-      isUnread: false,
-      categoryType: _NotificationCategory.festival,
-    ),
-    const _NotificationItem(
-      category: 'NEARBY OFFERS',
-      title: 'Food Stall Discount',
-      description: 'Exclusive 15% off at the traditional Bengali sweets stall near College Square.',
-      time: 'Yesterday',
-      isUnread: false,
-      categoryType: _NotificationCategory.offer,
-    ),
-    const _NotificationItem(
-      category: 'SYSTEM',
-      title: 'New AI Route Generated',
-      description: 'Your personalized \'Heritage Walk\' route for North Kolkata is ready to view.',
-      time: 'Oct 18',
-      isUnread: false,
-      categoryType: _NotificationCategory.system,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => _isLoading = true);
+    final list = await _service.fetchNotifications(categoryFilter: _selectedFilter);
+    if (mounted) {
+      setState(() {
+        _notifications = list;
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onFilterSelected(String filter) {
+    setState(() {
+      _selectedFilter = filter;
+    });
+    _loadNotifications();
+  }
+
+  Future<void> _handleNotificationTap(AppNotification notif) async {
+    await _service.markAsRead(notif.userNotificationId);
+    setState(() {}); // Refresh read status dot
+
+    if (!mounted) return;
+
+    if (notif.relatedPandalId != null) {
+      final pandalProvider = context.read<PandalProvider>();
+      final matches = pandalProvider.pandals.where((p) => p.id == notif.relatedPandalId);
+      final Pandal? pandal = matches.isNotEmpty
+          ? matches.first
+          : (pandalProvider.pandals.isNotEmpty ? pandalProvider.pandals.first : null);
+
+      if (pandal != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PandalDetailScreen(pandal: pandal),
+          ),
+        );
+      }
+    } else if (notif.deepLink != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Opened link: ${notif.deepLink}'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Filter list
-    final filteredList = _allNotifications.where((n) {
-      if (_selectedFilter == 'All') return true;
-      if (_selectedFilter == 'Festival Updates' && n.categoryType == _NotificationCategory.festival) return true;
-      if (_selectedFilter == 'Crowd Alerts' && n.categoryType == _NotificationCategory.crowd) return true;
-      return false;
-    }).toList();
-
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: back button, logo text, settings button
+            // Header: back button, logo text, settings gear
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -80,9 +103,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, color: Color(0xFFAF101A)),
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Settings tapped')),
-                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationSettingsScreen(),
+                        ),
+                      ).then((_) => _loadNotifications());
                     },
                   ),
                 ],
@@ -97,71 +123,64 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Notifications',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 32,
+                    style: TextStyle(
+                      fontFamily: 'PlayfairDisplay',
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF333333),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
-                    'Stay updated with the latest festival happenings.',
-                    style: GoogleFonts.manrope(
-                      fontSize: 14,
-                      color: Colors.black54,
+                    'Stay updated with live crowd alerts & festival news',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
 
-            // Filter Chips Row
+            // Filter Tabs (All / Crowd Alerts / Festival Updates / Offers / System)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
-                  _buildFilterChip('All'),
+                  _buildFilterTab('All'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Festival Updates'),
+                  _buildFilterTab('Crowd Alerts'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Crowd Alerts'),
+                  _buildFilterTab('Festival Updates'),
+                  const SizedBox(width: 8),
+                  _buildFilterTab('Special Offers'),
+                  const SizedBox(width: 8),
+                  _buildFilterTab('System'),
                 ],
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Notifications List
+            // Notifications List / Loading State / Empty State
             Expanded(
-              child: filteredList.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.notifications_off_outlined, size: 64, color: AppColors.textMuted),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No notifications in this category',
-                            style: GoogleFonts.manrope(
-                              fontSize: 15,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: filteredList.length,
-                      itemBuilder: (context, index) {
-                        return _buildNotificationCard(filteredList[index]);
-                      },
-                    ),
+              child: _isLoading
+                  ? const NotificationListSkeletonLoader()
+                  : _notifications.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                          itemCount: _notifications.length,
+                          itemBuilder: (context, index) {
+                            final item = _notifications[index];
+                            return _buildNotificationCard(item);
+                          },
+                        ),
             ),
           ],
         ),
@@ -169,194 +188,169 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterTab(String label) {
     final isSelected = _selectedFilter == label;
     return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      onTap: () => _onFilterSelected(label),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
+          color: isSelected ? const Color(0xFFAF101A) : Colors.grey[100],
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFFFFF2F0) : Colors.grey[200]!,
-            width: isSelected ? 2 : 1,
+            color: isSelected ? const Color(0xFFAF101A) : Colors.grey[300]!,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
         child: Text(
           label,
-          style: GoogleFonts.manrope(
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-            color: isSelected ? const Color(0xFFAF101A) : Colors.grey[600],
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey[700],
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNotificationCard(_NotificationItem item) {
-    // Get colors & icon based on category
-    Color badgeBg;
-    Color badgeTextColor;
-    IconData icon;
-
-    switch (item.categoryType) {
-      case _NotificationCategory.crowd:
-        badgeBg = const Color(0xFFFEE8E8);
-        badgeTextColor = const Color(0xFFC8363C);
-        icon = Icons.people_outline;
-        break;
-      case _NotificationCategory.festival:
-        badgeBg = const Color(0xFFFEF7E0);
-        badgeTextColor = const Color(0xFFB88E00);
-        icon = Icons.temple_hindu_outlined;
-        break;
-      case _NotificationCategory.offer:
-        badgeBg = const Color(0xFFFDF0F5);
-        badgeTextColor = const Color(0xFFC03C70);
-        icon = Icons.local_offer_outlined;
-        break;
-      case _NotificationCategory.system:
-        badgeBg = const Color(0xFFEEF2F6);
-        badgeTextColor = const Color(0xFF4A5568);
-        icon = Icons.alt_route;
-        break;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.015),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+  Widget _buildNotificationCard(AppNotification item) {
+    return GestureDetector(
+      onTap: () => _handleNotificationTap(item),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: item.isRead ? Colors.white : const Color(0xFFFFF9F9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: item.isRead ? Colors.grey[200]! : AppColors.primary.withOpacity(0.3),
+            width: item.isRead ? 1 : 1.5,
           ),
-        ],
-        border: Border.all(color: Colors.grey[100]!),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Circle Icon Badge
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: badgeBg,
-              shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
-            child: Center(
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Category Icon Badge
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: item.category.color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
               child: Icon(
-                icon,
-                color: badgeTextColor,
-                size: 22,
+                item.category.icon,
+                color: item.category.color,
+                size: 20,
               ),
             ),
-          ),
-          const SizedBox(width: 14),
+            const SizedBox(width: 14),
 
-          // Details text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top row with category, unread dot, time
-                Row(
-                  children: [
-                    Text(
-                      item.category,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: badgeTextColor,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      item.time,
-                      style: GoogleFonts.manrope(
-                        fontSize: 11,
-                        color: Colors.grey[400],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (item.isUnread) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFAF101A),
-                          shape: BoxShape.circle,
+            // Content Column
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        item.category.label.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: item.category.color,
+                          letterSpacing: 0.8,
                         ),
                       ),
+                      Row(
+                        children: [
+                          Text(
+                            item.timeAgoFormatted,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          if (!item.isRead) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFAF101A),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                // Title
-                Text(
-                  item.title,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
                   ),
-                ),
-                const SizedBox(height: 4),
-
-                // Description
-                Text(
-                  item.description,
-                  style: GoogleFonts.manrope(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    height: 1.4,
+                  const SizedBox(height: 4),
+                  Text(
+                    item.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: item.isRead ? FontWeight.w600 : FontWeight.bold,
+                      color: const Color(0xFF222222),
+                    ),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    item.body,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.notifications_none_rounded, size: 48, color: Colors.grey[400]),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No notifications yet',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'We\'ll notify you about live crowd alerts & updates',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
           ),
         ],
       ),
     );
   }
-}
-
-enum _NotificationCategory { crowd, festival, offer, system }
-
-class _NotificationItem {
-  const _NotificationItem({
-    required this.category,
-    required this.title,
-    required this.description,
-    required this.time,
-    required this.isUnread,
-    required this.categoryType,
-  });
-
-  final String category;
-  final String title;
-  final String description;
-  final String time;
-  final bool isUnread;
-  final _NotificationCategory categoryType;
 }

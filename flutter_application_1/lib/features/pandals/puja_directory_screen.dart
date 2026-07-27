@@ -5,6 +5,8 @@ import '../../core/models/models.dart';
 import '../../core/services/supabase_service.dart';
 import 'pandal_detail_screen.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../../shared/widgets/loading/loading.dart';
+import '../../shared/widgets/states/skeleton_loaders.dart';
 
 /// ============================================================
 /// MANCHITRA — Kolkata Puja Directory Screen (See All Pujas)
@@ -154,6 +156,11 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                       ),
                     ),
                   ),
+                  if (_isLoading && _searchQuery.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: AppSpinner(size: 16, strokeWidth: 2.0),
+                    ),
                   if (_searchQuery.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
@@ -227,11 +234,7 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
           // 3. Main Directory List Content
           Expanded(
             child: _isLoading
-                ? ListView.builder(
-                    padding: const EdgeInsets.only(left: 20, right: 20, bottom: 40),
-                    itemCount: 5,
-                    itemBuilder: (context, index) => const PandalDirectoryCardSkeleton(),
-                  )
+                ? const PandalListSkeletonLoader(itemCount: 6)
                 : RefreshIndicator(
                     onRefresh: _fetchPandals,
                     color: const Color(0xFFAF101A),
@@ -274,6 +277,15 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
   }
 
   Widget _buildDirectoryCard(Pandal pandal) {
+    final bool isBonedi = _isBonediBari(pandal);
+    final String displayImage = (pandal.coverPhotoUrl != null && pandal.coverPhotoUrl!.trim().isNotEmpty)
+        ? pandal.coverPhotoUrl!
+        : (pandal.photoUrls.isNotEmpty && pandal.photoUrls.first.trim().isNotEmpty)
+            ? pandal.photoUrls.first
+            : (isBonedi
+                ? 'https://res.cloudinary.com/mizoda0v/image/upload/v1784040072/ed6f162b-dea4-40ea-90d8-6612efc37222_1_105_c_k0rks6.jpg'
+                : 'https://res.cloudinary.com/mizoda0v/image/upload/v1784038553/579c3d50-c14f-49f4-accd-1a6d29de66e1_u8k0dq.jpg');
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -300,33 +312,36 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // 80x80 Pandal Thumbnail (with Cover Fallback)
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                image: pandal.coverPhotoUrl != null && pandal.coverPhotoUrl!.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(pandal.coverPhotoUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-                gradient: pandal.coverPhotoUrl != null && pandal.coverPhotoUrl!.isNotEmpty
-                    ? null
-                    : const LinearGradient(
-                        colors: [AppColors.primaryContainer, AppColors.tertiaryContainer],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-              ),
-              child: pandal.coverPhotoUrl != null && pandal.coverPhotoUrl!.isNotEmpty
-                  ? null
-                  : const Center(
-                      child: Icon(Icons.temple_hindu, color: AppColors.secondary, size: 32),
+            // 80x80 Pandal Thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                displayImage,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    width: 80,
+                    height: 80,
+                    color: AppColors.primaryContainer,
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
                     ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 80,
+                  height: 80,
+                  color: AppColors.primaryContainer,
+                  child: const Center(
+                    child: Icon(Icons.temple_hindu, color: AppColors.secondary, size: 32),
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
 
             // Content details on the right
             Expanded(
@@ -358,24 +373,31 @@ class _PujaDirectoryScreenState extends State<PujaDirectoryScreen> {
                   // Stats (Area tag & Crowd level badge)
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F5F5),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.location_on, size: 11, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              pandal.area,
-                              style: GoogleFonts.manrope(fontSize: 11, color: Colors.grey[700]),
-                            ),
-                          ],
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.location_on, size: 11, color: Colors.grey),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  pandal.area,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.manrope(fontSize: 11, color: Colors.grey[700]),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
